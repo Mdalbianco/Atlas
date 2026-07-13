@@ -6,7 +6,7 @@ Configurazione principale di Atlas
 
 APP_NAME = "Atlas"
 
-VERSION = "0.0.2"
+VERSION = "0.0.3"
 
 PAPER_TRADING = True
 

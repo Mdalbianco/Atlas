@@ -1,14 +1,15 @@
-from config.settings import APP_NAME
-from config.settings import VERSION
-from config.settings import PAPER_TRADING
-from config.settings import INITIAL_CAPITAL
+from app.services.startup import startup
+from config.settings import (
+    APP_NAME,
+    INITIAL_CAPITAL,
+    PAPER_TRADING,
+    VERSION,
+)
 
-from app.bot.telegram_bot import run_telegram_bot
-from app.utils.logger import log
-from app.utils.system_check import check_system
 
+def banner() -> None:
+    """Mostra le informazioni principali di Atlas."""
 
-def banner():
     print("=" * 45)
     print(f"🚀 {APP_NAME}")
     print(f"Versione {VERSION}")
@@ -18,12 +19,11 @@ def banner():
     print("=" * 45)
 
 
-def main():
-    banner()
-    check_system()
-    log("Sistema Atlas avviato")
+def main() -> None:
+    """Punto di ingresso principale di Atlas."""
 
-    run_telegram_bot()
+    banner()
+    startup()
 
 
 if __name__ == "__main__":

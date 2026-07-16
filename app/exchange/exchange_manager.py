@@ -23,3 +23,18 @@ class ExchangeManager:
             for currency, amount in totals.items()
             if amount is not None and amount > 0
         }
+
+    def get_market_price(self, symbol: str) -> dict:
+        """Restituisce i dati essenziali della coppia richiesta."""
+
+        ticker = self.kraken.get_ticker(symbol)
+
+        return {
+            "symbol": symbol,
+            "last": ticker.get("last"),
+            "bid": ticker.get("bid"),
+            "ask": ticker.get("ask"),
+            "high": ticker.get("high"),
+            "low": ticker.get("low"),
+            "percentage": ticker.get("percentage"),
+        }

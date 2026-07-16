@@ -29,6 +29,7 @@ async def start_command(
         "Comandi disponibili:\n"
         "/start - Avvia Atlas\n"
         "/saldo - Mostra il saldo Kraken"
+        "/prezzo - Mostra il prezzo BTC/EUR"
     )
 
 
@@ -100,7 +101,71 @@ async def balance_command(
         await update.message.reply_text(
             "❌ Si è verificato un errore imprevisto."
         )
+async def price_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Mostra il prezzo attuale di BTC/EUR."""
 
+    if update.message is None:
+        return
+
+    await update.message.reply_text(
+        "⏳ Sto leggendo il prezzo di BTC/EUR..."
+    )
+
+    try:
+        exchange_manager = ExchangeManager()
+
+        market_data = exchange_manager.get_market_price("BTC/EUR")
+
+        last_price = market_data.get("last")
+        bid_price = market_data.get("bid")
+        ask_price = market_data.get("ask")
+        high_price = market_data.get("high")
+        low_price = market_data.get("low")
+        percentage = market_data.get("percentage")
+
+        percentage_text = (
+            f"{percentage:.2f}%"
+            if percentage is not None
+            else "Non disponibile"
+        )
+
+        message = (
+            "📈 BTC/EUR\n\n"
+            f"Ultimo prezzo: {last_price} €\n"
+            f"Acquisto bid: {bid_price} €\n"
+            f"Vendita ask: {ask_price} €\n"
+            f"Massimo 24h: {high_price} €\n"
+            f"Minimo 24h: {low_price} €\n"
+            f"Variazione 24h: {percentage_text}"
+        )
+
+        await update.message.reply_text(message)
+
+        log("Prezzo BTC/EUR inviato tramite Telegram")
+
+    except ccxt.NetworkError:
+        log("Errore di rete durante la lettura del prezzo")
+
+        await update.message.reply_text(
+            "❌ Kraken non è raggiungibile in questo momento."
+        )
+
+    except ccxt.ExchangeError as error:
+        log(f"Errore Kraken durante la lettura del prezzo: {error}")
+
+        await update.message.reply_text(
+            "❌ Kraken ha restituito un errore."
+        )
+
+    except Exception as error:
+        log(f"Errore imprevisto nel comando /prezzo: {error}")
+
+        await update.message.reply_text(
+            "❌ Si è verificato un errore imprevisto."
+        )
 
 def create_telegram_application() -> Application:
     """Crea e configura l'applicazione Telegram."""
@@ -125,6 +190,9 @@ def create_telegram_application() -> Application:
         CommandHandler("saldo", balance_command)
     )
 
+    application.add_handler(
+    CommandHandler("prezzo", price_command)
+    )
     return application
 
 

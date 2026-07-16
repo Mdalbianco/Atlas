@@ -10,6 +10,7 @@ from telegram.ext import (
 )
 
 from app.exchange.exchange_manager import ExchangeManager
+from app.services.watchlist_service import WatchlistService
 from app.utils.logger import log
 
 
@@ -23,15 +24,17 @@ async def start_command(
         return
 
     await update.message.reply_text(
-        "🚀 Ciao!\n\n"
-        "Sono Atlas.\n"
-        "Il sistema Telegram è operativo.\n\n"
-        "Comandi disponibili:\n"
-        "/start - Avvia Atlas\n"
-        "/saldo - Mostra il saldo Kraken"
-        "/prezzo BTC - Mostra il prezzo di una crypto in EUR"
-    )
-
+    "🚀 Ciao!\n\n"
+    "Sono Atlas.\n"
+    "Il sistema Telegram è operativo.\n\n"
+    "Comandi disponibili:\n"
+    "/start - Mostra i comandi\n"
+    "/saldo - Mostra il saldo Kraken\n"
+    "/prezzo BTC - Mostra il prezzo in EUR\n"
+    "/watch - Mostra la watchlist\n"
+    "/watch add BTC - Aggiunge una crypto\n"
+    "/watch remove BTC - Rimuove una crypto"
+)
 
 async def balance_command(
     update: Update,
@@ -192,7 +195,105 @@ async def price_command(
         await update.message.reply_text(
             "❌ Si è verificato un errore imprevisto."
         )
+async def watch_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Mostra, aggiunge o rimuove crypto dalla watchlist."""
 
+    if update.message is None:
+        return
+
+    watchlist = WatchlistService()
+
+    # Comando senza argomenti: /watch
+    if not context.args:
+        symbols = watchlist.get_symbols()
+
+        if not symbols:
+            message = (
+                "👀 Watchlist Atlas\n\n"
+                "La watchlist è vuota.\n\n"
+                "Aggiungi una crypto con:\n"
+                "/watch add BTC"
+            )
+        else:
+            symbol_lines = [
+                f"• {symbol}/EUR"
+                for symbol in symbols
+            ]
+
+            message = (
+                "👀 Watchlist Atlas\n\n"
+                + "\n".join(symbol_lines)
+                + "\n\n"
+                "Comandi:\n"
+                "/watch add BTC\n"
+                "/watch remove BTC"
+            )
+
+        await update.message.reply_text(message)
+        return
+
+    action = context.args[0].lower()
+
+    # Controlla che sia stata indicata anche una crypto
+    if len(context.args) < 2:
+        await update.message.reply_text(
+            "ℹ️ Devi specificare una criptovaluta.\n\n"
+            "Esempi:\n"
+            "/watch add BTC\n"
+            "/watch remove BTC"
+        )
+        return
+
+    symbol = context.args[1].upper()
+
+    # Accettiamo soltanto simboli semplici come BTC, ETH o SOL
+    if not symbol.isalnum() or len(symbol) > 15:
+        await update.message.reply_text(
+            "❌ Simbolo non valido.\n\n"
+            "Esempio corretto: /watch add BTC"
+        )
+        return
+
+    if action == "add":
+        added = watchlist.add_symbol(symbol)
+
+        if added:
+            await update.message.reply_text(
+                f"✅ {symbol} aggiunto alla watchlist."
+            )
+            log(f"{symbol} aggiunto alla watchlist")
+        else:
+            await update.message.reply_text(
+                f"ℹ️ {symbol} è già presente nella watchlist."
+            )
+
+        return
+
+    if action == "remove":
+        removed = watchlist.remove_symbol(symbol)
+
+        if removed:
+            await update.message.reply_text(
+                f"🗑️ {symbol} rimosso dalla watchlist."
+            )
+            log(f"{symbol} rimosso dalla watchlist")
+        else:
+            await update.message.reply_text(
+                f"ℹ️ {symbol} non è presente nella watchlist."
+            )
+
+        return
+
+    await update.message.reply_text(
+        "❌ Azione non riconosciuta.\n\n"
+        "Comandi disponibili:\n"
+        "/watch\n"
+        "/watch add BTC\n"
+        "/watch remove BTC"
+    )
 def create_telegram_application() -> Application:
     """Crea e configura l'applicazione Telegram."""
 
@@ -219,8 +320,11 @@ def create_telegram_application() -> Application:
     application.add_handler(
     CommandHandler("prezzo", price_command)
     )
-    return application
 
+    application.add_handler(
+    CommandHandler("watch", watch_command)
+    )
+    return application
 
 def run_telegram_bot() -> None:
     """Avvia il bot Telegram in modalità polling."""

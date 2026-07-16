@@ -1,6 +1,13 @@
+# Python
 __pycache__/
+*.py[cod]
+*.pyo
 
-*.pyc
-
+# Ambiente
 .env
+
+# VS Code
 .vscode/
+
+# macOS
+.DS_Store

@@ -29,7 +29,7 @@ async def start_command(
         "Comandi disponibili:\n"
         "/start - Avvia Atlas\n"
         "/saldo - Mostra il saldo Kraken"
-        "/prezzo - Mostra il prezzo BTC/EUR"
+        "/prezzo BTC - Mostra il prezzo di una crypto in EUR"
     )
 
 
@@ -105,19 +105,31 @@ async def price_command(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    """Mostra il prezzo attuale di BTC/EUR."""
+    """Mostra il prezzo della criptovaluta richiesta contro EUR."""
 
     if update.message is None:
         return
 
+    if not context.args:
+        await update.message.reply_text(
+            "ℹ️ Specifica una criptovaluta.\n\n"
+            "Esempi:\n"
+            "/prezzo BTC\n"
+            "/prezzo ETH\n"
+            "/prezzo SOL"
+        )
+        return
+
+    base_currency = context.args[0].upper()
+    symbol = f"{base_currency}/EUR"
+
     await update.message.reply_text(
-        "⏳ Sto leggendo il prezzo di BTC/EUR..."
+        f"⏳ Sto leggendo il prezzo di {symbol}..."
     )
 
     try:
         exchange_manager = ExchangeManager()
-
-        market_data = exchange_manager.get_market_price("BTC/EUR")
+        market_data = exchange_manager.get_market_price(symbol)
 
         last_price = market_data.get("last")
         bid_price = market_data.get("bid")
@@ -126,25 +138,39 @@ async def price_command(
         low_price = market_data.get("low")
         percentage = market_data.get("percentage")
 
+        def format_price(value: float | None) -> str:
+            if value is None:
+                return "Non disponibile"
+
+            return f"{value:,.2f}".replace(",", "X").replace(".", ",").replace(
+                "X", "."
+            )
+
         percentage_text = (
-            f"{percentage:.2f}%"
+            f"{percentage:+.2f}%"
             if percentage is not None
             else "Non disponibile"
         )
 
         message = (
-            "📈 BTC/EUR\n\n"
-            f"Ultimo prezzo: {last_price} €\n"
-            f"Acquisto bid: {bid_price} €\n"
-            f"Vendita ask: {ask_price} €\n"
-            f"Massimo 24h: {high_price} €\n"
-            f"Minimo 24h: {low_price} €\n"
+            f"📈 {symbol}\n\n"
+            f"Ultimo prezzo: {format_price(last_price)} €\n"
+            f"Bid: {format_price(bid_price)} €\n"
+            f"Ask: {format_price(ask_price)} €\n"
+            f"Massimo 24h: {format_price(high_price)} €\n"
+            f"Minimo 24h: {format_price(low_price)} €\n"
             f"Variazione 24h: {percentage_text}"
         )
 
         await update.message.reply_text(message)
+        log(f"Prezzo {symbol} inviato tramite Telegram")
 
-        log("Prezzo BTC/EUR inviato tramite Telegram")
+    except ccxt.BadSymbol:
+        log(f"Coppia non disponibile su Kraken: {symbol}")
+
+        await update.message.reply_text(
+            f"❌ La coppia {symbol} non è disponibile su Kraken."
+        )
 
     except ccxt.NetworkError:
         log("Errore di rete durante la lettura del prezzo")

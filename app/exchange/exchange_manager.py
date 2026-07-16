@@ -38,3 +38,17 @@ class ExchangeManager:
             "low": ticker.get("low"),
             "percentage": ticker.get("percentage"),
         }
+    
+    def get_candles(
+     self,
+     symbol: str,
+     timeframe: str = "1h",
+     limit: int = 100,
+    ) -> list[list]:
+     """Restituisce le candele della coppia richiesta."""
+     
+     return self.kraken.get_ohlcv(
+         symbol=symbol,
+         timeframe=timeframe,
+         limit=limit,
+         )

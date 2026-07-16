@@ -1,8 +1,15 @@
+from pprint import pprint
+
 from app.analysis.analysis_manager import AnalysisManager
 
 
-analysis = AnalysisManager()
+def main() -> None:
+    analysis_manager = AnalysisManager()
 
-result = analysis.analyze("BTC")
+    result = analysis_manager.analyze("BTC")
 
-print(result)
+    pprint(result)
+
+
+if __name__ == "__main__":
+    main()

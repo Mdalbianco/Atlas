@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 
 class KrakenClient:
-    """Gestisce la connessione a Kraken."""
+    """Gestisce la connessione e le richieste verso Kraken."""
 
     def __init__(self) -> None:
         load_dotenv()
@@ -27,7 +27,7 @@ class KrakenClient:
         )
 
     def get_balance(self) -> dict:
-        """Restituisce il saldo dell'account."""
+        """Restituisce il saldo dell'account Kraken."""
 
         return self.exchange.fetch_balance()
 
@@ -35,3 +35,17 @@ class KrakenClient:
         """Restituisce i dati di mercato della coppia indicata."""
 
         return self.exchange.fetch_ticker(symbol)
+
+    def get_ohlcv(
+        self,
+        symbol: str,
+        timeframe: str = "1h",
+        limit: int = 100,
+    ) -> list[list]:
+        """Scarica le candele OHLCV della coppia indicata."""
+
+        return self.exchange.fetch_ohlcv(
+            symbol=symbol,
+            timeframe=timeframe,
+            limit=limit,
+        )

@@ -11,6 +11,8 @@ from telegram.ext import (
 
 from app.exchange.exchange_manager import ExchangeManager
 from app.services.watchlist_service import WatchlistService
+from app.analysis.analysis_manager import AnalysisManager
+from app.analysis.report import AnalysisReport
 from app.utils.logger import log
 
 
@@ -195,6 +197,48 @@ async def price_command(
         await update.message.reply_text(
             "❌ Si è verificato un errore imprevisto."
         )
+async def analysis_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Esegue l'analisi completa di una criptovaluta."""
+
+    if update.message is None:
+        return
+
+    if not context.args:
+        await update.message.reply_text(
+            "📊 Specifica una criptovaluta.\n\n"
+            "Esempi:\n"
+            "/analizza BTC\n"
+            "/analizza ETH\n"
+            "/analizza SOL"
+        )
+        return
+
+    symbol = context.args[0].upper()
+
+    await update.message.reply_text(
+        f"🧠 Atlas sta analizzando {symbol}..."
+    )
+
+    try:
+        analysis_manager = AnalysisManager()
+        report_generator = AnalysisReport()
+
+        result = analysis_manager.analyze(symbol)
+        report = report_generator.generate(result)
+
+        await update.message.reply_text(report)
+
+        log(f"Analisi inviata per {symbol}")
+
+    except Exception as error:
+        log(f"Errore durante l'analisi: {error}")
+
+        await update.message.reply_text(
+            "❌ Errore durante l'analisi della criptovaluta."
+        )
 async def watch_command(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -321,6 +365,10 @@ def create_telegram_application() -> Application:
     CommandHandler("prezzo", price_command)
     )
 
+    application.add_handler(
+    CommandHandler("analizza", analysis_command)
+    )
+    
     application.add_handler(
     CommandHandler("watch", watch_command)
     )

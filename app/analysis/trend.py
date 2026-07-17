@@ -1,45 +1,22 @@
 import pandas as pd
 
-from app.exchange.exchange_manager import ExchangeManager
-
 
 class TrendAnalyzer:
     """Analizza il trend tramite EMA 20 ed EMA 50."""
 
-    def __init__(self) -> None:
-        self.exchange_manager = ExchangeManager()
-
-    def analyze(self, symbol: str) -> dict:
+    def analyze(
+        self,
+        symbol: str,
+        dataframe: pd.DataFrame,
+    ) -> dict:
         """Restituisce direzione, forza ed EMA del mercato."""
 
-        market_symbol = (
-            symbol
-            if "/" in symbol
-            else f"{symbol.upper()}/EUR"
-        )
-
-        candles = self.exchange_manager.get_candles(
-            symbol=market_symbol,
-            timeframe="1h",
-            limit=100,
-        )
-
-        if len(candles) < 50:
+        if len(dataframe) < 50:
             raise ValueError(
                 "Dati insufficienti per calcolare il trend."
             )
 
-        dataframe = pd.DataFrame(
-            candles,
-            columns=[
-                "timestamp",
-                "open",
-                "high",
-                "low",
-                "close",
-                "volume",
-            ],
-        )
+        dataframe = dataframe.copy()
 
         dataframe["ema_20"] = (
             dataframe["close"]
@@ -73,6 +50,12 @@ class TrendAnalyzer:
         strength = min(
             round(difference_percentage * 20),
             100,
+        )
+
+        market_symbol = (
+            symbol.upper()
+            if "/" in symbol
+            else f"{symbol.upper()}/EUR"
         )
 
         return {

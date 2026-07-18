@@ -101,6 +101,80 @@ class PaperTradingService:
             return trade
         
         return None
+    
+    def check_trade_exit(
+     self,
+     trade: dict,
+     current_price: float,
+    ) -> dict | None:
+       """Controlla se il trade deve essere chiuso."""
+       
+       direction = trade["direction"]
+       
+       if direction == "Long":
+
+        if current_price <= trade["stop_loss"]:
+           return self.close_trade(
+                trade_id=trade["id"],
+                exit_price=current_price,
+                result="loss",
+            )
+
+        if current_price >= trade["take_profit"]:
+            return self.close_trade(
+                trade_id=trade["id"],
+                exit_price=current_price,
+                result="win",
+            )
+        
+        elif direction == "Short":
+            
+            if current_price >= trade["stop_loss"]:
+               return self.close_trade(
+                 trade_id=trade["id"],
+                 exit_price=current_price,
+                 result="loss",
+                )
+            
+            if current_price <= trade["take_profit"]:
+               return self.close_trade(
+                  trade_id=trade["id"],
+                  exit_price=current_price,
+                 result="win",
+                )
+        return None
+       
+    def check_open_trades(self, price_provider) -> list[dict]:
+       """
+       Controlla tutti i trade aperti.
+       price_provider deve essere una funzione che riceve il simbolo
+       e restituisce il prezzo corrente.
+       """
+       
+       open_trades = self.get_open_trades()
+       closed_trades = []
+       
+       for trade in open_trades:
+          symbol = trade["symbol"]
+          
+          try:
+             current_price = price_provider(symbol)
+
+             closed_trade = self.check_trade_exit(
+                trade=trade,
+                current_price=current_price,
+            )
+             
+             if closed_trade is not None:
+                closed_trades.append(closed_trade)
+                
+          except Exception as error:
+             print(
+                f"Errore durante il controllo del trade "
+                f"{trade['id']} ({symbol}): {error}"
+            )
+        
+       return closed_trades
 
     def open_trade(
         self,

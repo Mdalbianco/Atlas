@@ -62,3 +62,16 @@ class MarketDataService:
         ).reset_index(drop=True)
 
         return dataframe
+    
+    def get_current_price(self, symbol: str) -> float:
+     """
+     Restituisce l'ultimo prezzo disponibile.
+     """
+
+     dataframe = self.get_candles(
+         symbol=symbol,
+         timeframe="1m",
+         limit=1,
+    )
+     
+     return float(dataframe.iloc[-1]["close"])

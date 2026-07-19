@@ -45,35 +45,36 @@ class PaperTradingService:
                 ensure_ascii=False,
             )
 
-    def get_open_trade(
-        self,
-        symbol: str,
-    ) -> dict | None:
-      """Restituisce il trade aperto per il simbolo, se esiste."""
-      
-      trades = self._load_trades()
-      
-      symbol = symbol.upper()
-      
-      for trade in trades:
-        if (
-            trade["symbol"] == symbol
-            and trade["status"] == "open"
+    def get_open_trade(self, symbol: str) -> dict | None:
+     """Restituisce il trade aperto per il simbolo indicato."""
+
+     normalized_symbol = symbol.upper().replace("/EUR", "")
+     trades = self._load_trades()
+
+     for trade in trades:
+         trade_symbol = str(
+            trade.get("symbol", "")
+        ).upper().replace("/EUR", "")
+
+         if (
+             trade_symbol == normalized_symbol
+             and trade.get("status") == "open"
         ):
-         return trade
-        
-        return None
-    def get_open_trades(
-     self,
-    ) -> list[dict]:
-     """Restituisce tutti i trade aperti."""
+            return trade
+
+     return None
+      
+    def get_open_trades(self) -> list[dict]:
+     """
+     Restituisce tutti i trade attualmente aperti.
+     """
 
      trades = self._load_trades()
-     
+
      return [
          trade
          for trade in trades
-         if trade["status"] == "open"
+         if trade.get("status") == "open"
     ]
     
     def close_trade(
@@ -192,7 +193,8 @@ class PaperTradingService:
                  (closed_at - opened_at).total_seconds()
                 )
 
-                 duration_minutes = duration_seconds // 60
+                 duration_hours = duration_seconds // 3600
+                 remaining_minutes = (duration_seconds % 3600) // 60
                  remaining_seconds = duration_seconds % 60
 
                  result_icon = (
@@ -209,7 +211,7 @@ class PaperTradingService:
                      f"Uscita: {exit_price:.2f} €\n\n"
                      f"Risultato: {closed_trade['result'].upper()}\n"
                      f"Performance: {profit_percentage:+.2f}%\n"
-                     f"Durata: {duration_minutes}m {remaining_seconds}s"
+                     f"Durata: {duration_hours}h {remaining_minutes}m {remaining_seconds}s"
                 )
 
                  closed_trades.append(closed_trade)
@@ -231,6 +233,7 @@ class PaperTradingService:
         take_profit: float,
     ) -> dict:
         
+        symbol = symbol.upper().replace("/EUR", "")
         existing_trade = self.get_open_trade(symbol)
         
         if existing_trade is not None:

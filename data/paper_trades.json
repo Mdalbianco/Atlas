@@ -1,15 +1,15 @@
 [
     {
-        "id": "f74d9196-2f2f-475c-89dd-6527228137ea",
+        "id": "ef4f5b38-f64b-4bcb-a537-a64639294337",
         "symbol": "BTC",
         "direction": "Long",
-        "entry_price": 56022.5,
-        "stop_loss": 55913.5785,
-        "take_profit": 5,
+        "entry_price": 55000,
+        "stop_loss": 54610,
+        "take_profit": 55780,
         "status": "closed",
-        "opened_at": "2026-07-18T12:32:44.417076+00:00",
-        "closed_at": "2026-07-19T12:25:50.321437+00:00",
-        "exit_price": 56319.6,
+        "opened_at": "2026-07-19T13:19:55.297968+00:00",
+        "closed_at": "2026-07-19T13:20:18.425989+00:00",
+        "exit_price": 56228.5,
         "result": "win"
     }
 ]

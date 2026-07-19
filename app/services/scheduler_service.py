@@ -59,23 +59,35 @@ class SchedulerService:
     }
 
     def run_forever(self) -> None:
-        """Esegue continuamente il monitoraggio dei trade."""
+     """Esegue continuamente il ciclo completo di Atlas."""
 
-        print(
-            f"Scheduler avviato. "
-            f"Controllo ogni {self.interval_seconds} secondi."
+     print(
+         f"Scheduler Atlas avviato. "
+         f"Controllo ogni {self.interval_seconds} secondi."
         )
 
-        while True:
-            try:
-                closed_trades = self.run_once()
+     while True:
+        try:
+            result = self.run_once()
 
-                if closed_trades:
-                    print(f"Trade chiusi: {closed_trades}")
-                else:
-                    print("Nessun trade chiuso.")
+            closed_trades = result["closed_trades"]
+            auto_trade_results = result["auto_trade_results"]
 
-            except Exception as error:
-                print(f"Errore nello scheduler: {error}")
+            if closed_trades:
+                print(f"Trade chiusi: {len(closed_trades)}")
+            else:
+                print("Nessun trade chiuso.")
 
-            time.sleep(self.interval_seconds)
+            print(
+                f"Simboli elaborati: "
+                f"{len(auto_trade_results)}"
+            )
+
+        except KeyboardInterrupt:
+            print("\nScheduler fermato manualmente.")
+            break
+
+        except Exception as error:
+            print(f"Errore nello scheduler: {error}")
+
+        time.sleep(self.interval_seconds)

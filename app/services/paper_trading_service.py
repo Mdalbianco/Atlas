@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -167,35 +168,51 @@ class PaperTradingService:
             )
              
              if closed_trade is not None:
-                self.notification_service.send_sync(
+                 entry_price = closed_trade["entry_price"]
+                 exit_price = closed_trade["exit_price"]
+                 direction = closed_trade["direction"]
 
-             f"""
+                 if direction == "Long":
+                     profit_percentage = (
+                     (exit_price - entry_price) / entry_price
+                    ) * 100
+                 else:
+                     profit_percentage = (
+                     (entry_price - exit_price) / entry_price
+                    ) * 100
 
-             {'🎯 TAKE PROFIT' if closed_trade['result'] == 'win' else '🛑 STOP LOSS'}
+                 opened_at = datetime.fromisoformat(
+                 closed_trade["opened_at"]
+                )
+                 closed_at = datetime.fromisoformat(
+                 closed_trade["closed_at"]
+                )
 
-             Crypto: {closed_trade['symbol']}
+                 duration_seconds = int(
+                 (closed_at - opened_at).total_seconds()
+                )
 
-             Direzione:
+                 duration_minutes = duration_seconds // 60
+                 remaining_seconds = duration_seconds % 60
 
-             {closed_trade['direction']}
+                 result_icon = (
+                     "🎯 TAKE PROFIT"
+                     if closed_trade["result"] == "win"
+                     else "🛑 STOP LOSS"
+                )
 
-             Entrata:
+                 self.notification_service.send_sync(
+                     f"{result_icon}\n\n"
+                     f"Crypto: {closed_trade['symbol']}\n"
+                     f"Direzione: {direction}\n\n"
+                     f"Entrata: {entry_price:.2f} €\n"
+                     f"Uscita: {exit_price:.2f} €\n\n"
+                     f"Risultato: {closed_trade['result'].upper()}\n"
+                     f"Performance: {profit_percentage:+.2f}%\n"
+                     f"Durata: {duration_minutes}m {remaining_seconds}s"
+                )
 
-             {closed_trade['entry_price']:.2f} €
-
-             Uscita:
-
-             {closed_trade['exit_price']:.2f} €
-
-             Risultato:
-
-             {closed_trade['result'].upper()}
-
-             """
-
-            )
-
-             closed_trades.append(closed_trade)
+                 closed_trades.append(closed_trade)
                 
           except Exception as error:
              print(

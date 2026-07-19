@@ -8,8 +8,8 @@
         "take_profit": 5,
         "status": "closed",
         "opened_at": "2026-07-18T12:32:44.417076+00:00",
-        "closed_at": "2026-07-19T11:19:57.825945+00:00",
-        "exit_price": 56503.4,
+        "closed_at": "2026-07-19T12:25:50.321437+00:00",
+        "exit_price": 56319.6,
         "result": "win"
     }
 ]

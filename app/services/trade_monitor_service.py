@@ -1,3 +1,4 @@
+from app.services.notification_service import NotificationService
 from app.services.market_data_service import MarketDataService
 from app.services.paper_trading_service import PaperTradingService
 
@@ -8,6 +9,7 @@ class TradeMonitorService:
     def __init__(self) -> None:
         self.paper_trading_service = PaperTradingService()
         self.market_data_service = MarketDataService()
+        self.notification_service = NotificationService()
 
     def check_once(self) -> list[dict]:
         """

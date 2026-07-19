@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
-
+from app.services.notification_service import NotificationService
 
 class PaperTradingService:
     """Gestisce le operazioni simulate di Atlas."""
@@ -12,6 +12,7 @@ class PaperTradingService:
         file_path: str = "data/paper_trades.json",
     ) -> None:
         self.file_path = Path(file_path)
+        self.notification_service = NotificationService()
 
     def _load_trades(self) -> list[dict]:
         if not self.file_path.exists():
@@ -166,7 +167,35 @@ class PaperTradingService:
             )
              
              if closed_trade is not None:
-                closed_trades.append(closed_trade)
+                self.notification_service.send_sync(
+
+             f"""
+
+             {'🎯 TAKE PROFIT' if closed_trade['result'] == 'win' else '🛑 STOP LOSS'}
+
+             Crypto: {closed_trade['symbol']}
+
+             Direzione:
+
+             {closed_trade['direction']}
+
+             Entrata:
+
+             {closed_trade['entry_price']:.2f} €
+
+             Uscita:
+
+             {closed_trade['exit_price']:.2f} €
+
+             Risultato:
+
+             {closed_trade['result'].upper()}
+
+             """
+
+            )
+
+             closed_trades.append(closed_trade)
                 
           except Exception as error:
              print(

@@ -78,10 +78,42 @@ class SchedulerService:
             else:
                 print("Nessun trade chiuso.")
 
-            print(
-                f"Simboli elaborati: "
-                f"{len(auto_trade_results)}"
-            )
+            print(f"Simboli elaborati: {len(auto_trade_results)}")
+
+            for item in auto_trade_results:
+                symbol = item.get("symbol")
+
+                if item.get("status") == "already_open":
+                 print(f"{symbol}: trade già aperto — analisi saltata")
+                 continue
+
+                if item.get("trade_opened"):
+                 trade = item["trade"]
+
+                 print(
+                     f"{trade['symbol']}: nuovo trade "
+                     f"{trade['direction']} aperto"
+                )
+                 continue
+            
+                analysis = item.get("analysis", {})
+                action = analysis.get("action", "Attendere")
+                reasons = analysis.get("reasons", [])
+
+                reason_text = (
+                 ", ".join(reasons)
+                 if reasons
+                 else item.get("reason", "Nessun dettaglio")
+                )
+
+                analysis_symbol = analysis.get("symbol", symbol or "?")
+                clean_symbol = analysis_symbol.replace("/EUR", "")
+
+                print(
+                 f"{clean_symbol}: {action} — {reason_text}"
+                )
+
+            print("-" * 40)
 
         except KeyboardInterrupt:
             print("\nScheduler fermato manualmente.")

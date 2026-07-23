@@ -1,9 +1,10 @@
-from datetime import datetime
 import json
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
+
 from app.services.notification_service import NotificationService
+from app.services.wallet_service import WalletService
 
 class PaperTradingService:
     """Gestisce le operazioni simulate di Atlas."""
@@ -14,6 +15,7 @@ class PaperTradingService:
     ) -> None:
         self.file_path = Path(file_path)
         self.notification_service = NotificationService()
+        self.wallet_service = WalletService()
 
     def _load_trades(self) -> list[dict]:
         if not self.file_path.exists():
@@ -181,6 +183,27 @@ class PaperTradingService:
                      profit_percentage = (
                      (entry_price - exit_price) / entry_price
                     ) * 100
+                     
+                 position_size = closed_trade.get("position_size", 20.0)
+
+                 wallet_result = self.wallet_service.apply_trade_result(
+                 performance_percentage=profit_percentage,
+                 position_size=position_size,
+                )
+
+                 closed_trade["profit_percentage"] = round(
+                 profit_percentage,
+                 2,
+                )
+                 closed_trade["profit_loss"] = round(
+                
+                 wallet_result["profit_loss"],
+                 2,
+                )
+                 closed_trade["wallet_balance"] = round(
+                 wallet_result["current_balance"],
+                 2,
+                )
 
                  opened_at = datetime.fromisoformat(
                  closed_trade["opened_at"]
@@ -231,6 +254,7 @@ class PaperTradingService:
         entry_price: float,
         stop_loss: float,
         take_profit: float,
+        position_size: float = 20.0,
     ) -> dict:
         
         symbol = symbol.upper().replace("/EUR", "")
@@ -245,6 +269,7 @@ class PaperTradingService:
             "symbol": symbol.upper(),
             "direction": direction,
             "entry_price": entry_price,
+            "position_size": position_size,
             "stop_loss": stop_loss,
             "take_profit": take_profit,
             "status": "open",

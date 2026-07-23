@@ -59,3 +59,50 @@ class RiskManager:
             "take_profit": round(take_profit, 4),
             "risk_reward_ratio": risk_reward_ratio,
         }
+
+    def calculate_position_size(
+       self,
+       account_balance: float,
+       entry_price: float,
+       stop_loss: float,
+       risk_percentage: float = 2.0,
+    ) -> float:
+     """
+     Calcola il capitale da impiegare affinché,
+     se viene colpito lo Stop Loss, la perdita
+     massima sia pari alla percentuale di rischio scelta.
+     """
+
+     if account_balance <= 0:
+        return 0.0
+
+     if entry_price <= 0:
+        return 0.0
+
+     stop_distance = abs(entry_price - stop_loss)
+
+     if stop_distance <= 0:
+        return 0.0
+
+     risk_amount = (
+        account_balance
+        * risk_percentage
+        / 100
+    )
+
+     stop_distance_percentage = (
+        stop_distance
+        / entry_price
+    )
+
+     position_size = (
+        risk_amount
+        / stop_distance_percentage
+    )
+
+     position_size = min(
+        position_size,
+        account_balance,
+    )
+
+     return round(position_size, 2)

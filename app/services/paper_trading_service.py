@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
+from app.services.trade_journal_service import TradeJournalService
 
 from app.services.notification_service import NotificationService
 from app.services.wallet_service import WalletService
@@ -16,6 +17,7 @@ class PaperTradingService:
         self.file_path = Path(file_path)
         self.notification_service = NotificationService()
         self.wallet_service = WalletService()
+        self.trade_journal_service = TradeJournalService()
 
     def _load_trades(self) -> list[dict]:
         if not self.file_path.exists():
@@ -91,19 +93,24 @@ class PaperTradingService:
         
         for trade in trades:
             if (
-            trade["id"] == trade_id
-            and trade["status"] == "open"
-        ):
+             trade["id"] == trade_id
+             and trade["status"] == "open"
+            ):
                trade["status"] = "closed"
                trade["exit_price"] = exit_price
                trade["result"] = result
                trade["closed_at"] = datetime.now(
-                timezone.utc
-            ).isoformat()
+                 timezone.utc
+                ).isoformat()
 
-            self._save_trades(trades)
+               self._save_trades(trades)
 
-            return trade
+               self.trade_journal_service.log_event(
+                 trade_id=trade["id"],
+                 event_type="TRADE_CLOSED",
+                 data=trade,
+                )
+               return trade
         
         return None
     
@@ -280,8 +287,13 @@ class PaperTradingService:
             "exit_price": None,
             "result": None,
         }
-
         trades.append(trade)
         self._save_trades(trades)
 
+        self.trade_journal_service.log_event(
+        trade_id=trade["id"],
+        event_type="TRADE_OPENED",
+        data=trade,
+        )
         return trade
+

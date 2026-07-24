@@ -105,11 +105,6 @@ class PaperTradingService:
 
                self._save_trades(trades)
 
-               self.trade_journal_service.log_event(
-                 trade_id=trade["id"],
-                 event_type="TRADE_CLOSED",
-                 data=trade,
-                )
                return trade
         
         return None
@@ -194,8 +189,8 @@ class PaperTradingService:
                  position_size = closed_trade.get("position_size", 20.0)
 
                  wallet_result = self.wallet_service.apply_trade_result(
-                 performance_percentage=profit_percentage,
-                 position_size=position_size,
+                     performance_percentage=profit_percentage,
+                     position_size=position_size,
                 )
 
                  closed_trade["profit_percentage"] = round(
@@ -203,7 +198,6 @@ class PaperTradingService:
                  2,
                 )
                  closed_trade["profit_loss"] = round(
-                
                  wallet_result["profit_loss"],
                  2,
                 )
@@ -211,7 +205,6 @@ class PaperTradingService:
                  wallet_result["current_balance"],
                  2,
                 )
-
                  opened_at = datetime.fromisoformat(
                  closed_trade["opened_at"]
                 )
@@ -227,6 +220,25 @@ class PaperTradingService:
                  remaining_minutes = (duration_seconds % 3600) // 60
                  remaining_seconds = duration_seconds % 60
 
+                 closed_trade["duration"] = (
+
+                 f"{duration_hours}h "
+                 f"{remaining_minutes}m "
+                 f"{remaining_seconds}s"
+                )
+
+                 trades = self._load_trades()
+                 for saved_trade in trades:
+                     if saved_trade["id"] == closed_trade["id"]:
+                         saved_trade.update(closed_trade)
+                         break
+
+                 self._save_trades(trades)
+                 self.trade_journal_service.log_event(
+                     trade_id=closed_trade["id"],
+                     event_type="TRADE_CLOSED",
+                     data=closed_trade,
+                )
                  result_icon = (
                      "🎯 TAKE PROFIT"
                      if closed_trade["result"] == "win"

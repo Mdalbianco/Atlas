@@ -7,12 +7,16 @@ from app.services.wallet_service import WalletService
 class AutoTradeService:
     """Analizza il mercato e apre automaticamente trade simulati validi."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        max_open_trades: int = 2,
+    ) -> None:
         self.analysis_manager = AnalysisManager()
         self.paper_trading_service = PaperTradingService()
         self.notification_service = NotificationService()
         self.risk_manager = RiskManager()
         self.wallet_service = WalletService()
+        self.max_open_trades = max_open_trades
 
     def analyze_and_open(self, symbol: str) -> dict:
         """
@@ -28,6 +32,19 @@ class AutoTradeService:
                 "reason": "Nessun piano operativo disponibile.",
                 "analysis": analysis,
             }
+
+        open_trades = self.paper_trading_service.get_open_trades()
+
+        if len(open_trades) >= self.max_open_trades:
+         return {
+            "trade_opened": False,
+            "status": "max_open_trades_reached",
+            "reason": (
+               "Limite massimo di trade aperti raggiunto: "
+               f"{self.max_open_trades}."
+            ),
+            "analysis": analysis,
+        }
         
         account_balance = self.wallet_service.get_balance()
 

@@ -9,6 +9,8 @@ from telegram.ext import (
     ContextTypes,
 )
 
+from app.services.statistics_service import StatisticsService
+from app.services.wallet_service import WalletService
 from app.exchange.exchange_manager import ExchangeManager
 from app.services.watchlist_service import WatchlistService
 from app.analysis.analysis_manager import AnalysisManager
@@ -32,6 +34,7 @@ async def start_command(
     "Comandi disponibili:\n"
     "/start - Mostra i comandi\n"
     "/saldo - Mostra il saldo Kraken\n"
+    "/performance - Mostra le performance del paper trading\n"
     "/prezzo BTC - Mostra il prezzo in EUR\n"
     "/watch - Mostra la watchlist\n"
     "/watch add BTC - Aggiunge una crypto\n"
@@ -338,6 +341,106 @@ async def watch_command(
         "/watch add BTC\n"
         "/watch remove BTC"
     )
+
+async def performance_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Mostra le performance del paper trading di Atlas."""
+
+    if update.message is None:
+        return
+
+    try:
+        statistics = StatisticsService().calculate()
+        wallet = WalletService().get_wallet()
+
+        initial_balance = float(
+            wallet.get("initial_balance", 0.0)
+        )
+
+        current_balance = float(
+            wallet.get("current_balance", 0.0)
+        )
+
+        roi = (
+            (
+                current_balance - initial_balance
+            )
+            / initial_balance
+            * 100
+            if initial_balance > 0
+            else 0.0
+        )
+
+        total_trades = statistics["total_trades"]
+
+        if total_trades == 0:
+            message = (
+                "📊 ATLAS PERFORMANCE\n\n"
+                "Non ci sono ancora trade chiusi.\n\n"
+                f"Capitale iniziale: {initial_balance:.2f} €\n"
+                f"Saldo attuale: {current_balance:.2f} €\n"
+                f"ROI: {roi:+.2f}%"
+            )
+
+            await update.message.reply_text(message)
+            return
+
+        long_stats = statistics["long"]
+        short_stats = statistics["short"]
+
+        message = (
+            "📊 ATLAS PERFORMANCE\n\n"
+            "💰 Capitale\n"
+            f"Iniziale: {initial_balance:.2f} €\n"
+            f"Attuale: {current_balance:.2f} €\n"
+            f"ROI: {roi:+.2f}%\n\n"
+            "────────────\n\n"
+            f"Trade totali: {statistics['total_trades']}\n"
+            f"✅ Win: {statistics['wins']}\n"
+            f"❌ Loss: {statistics['losses']}\n"
+            f"Win rate: {statistics['win_rate']:.2f}%\n\n"
+            "────────────\n\n"
+            f"Profit Factor: {statistics['profit_factor']:.2f}\n"
+            f"Expectancy: {statistics['expectancy']:+.2f}%\n"
+            f"Average Win: {statistics['average_win']:+.2f}%\n"
+            f"Average Loss: {statistics['average_loss']:+.2f}%\n\n"
+            "────────────\n\n"
+            f"Best Trade: {statistics['best_trade']:+.2f}%\n"
+            f"Worst Trade: {statistics['worst_trade']:+.2f}%\n"
+            f"Performance media: "
+            f"{statistics['average_performance']:+.2f}%\n\n"
+            "────────────\n\n"
+            "📈 Long\n"
+            f"Trade: {long_stats['total_trades']}\n"
+            f"Win rate: {long_stats['win_rate']:.2f}%\n"
+            f"Performance media: "
+            f"{long_stats['average_performance']:+.2f}%\n\n"
+            "📉 Short\n"
+            f"Trade: {short_stats['total_trades']}\n"
+            f"Win rate: {short_stats['win_rate']:.2f}%\n"
+            f"Performance media: "
+            f"{short_stats['average_performance']:+.2f}%\n\n"
+            "────────────\n\n"
+            f"⏱ Durata media\n"
+            f"{statistics['average_duration']}"
+        )
+
+        await update.message.reply_text(message)
+
+        log("Report performance inviato tramite Telegram")
+
+    except Exception as error:
+        log(
+            f"Errore imprevisto nel comando /performance: "
+            f"{error}"
+        )
+
+        await update.message.reply_text(
+            "❌ Impossibile calcolare le performance."
+        )
+
 def create_telegram_application() -> Application:
     """Crea e configura l'applicazione Telegram."""
 
@@ -371,6 +474,13 @@ def create_telegram_application() -> Application:
     
     application.add_handler(
     CommandHandler("watch", watch_command)
+    )
+
+    application.add_handler(
+        CommandHandler(
+         "performance",
+         performance_command,
+        )
     )
     return application
 

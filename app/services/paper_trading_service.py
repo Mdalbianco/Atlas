@@ -19,6 +19,10 @@ class PaperTradingService:
         self.wallet_service = WalletService()
         self.trade_journal_service = TradeJournalService()
 
+        self.trailing_stop_enabled = True
+        self.trailing_activation_percentage = 2.0
+        self.trailing_distance_percentage = 1.0
+
     def _load_trades(self) -> list[dict]:
         if not self.file_path.exists():
             return []
@@ -108,6 +112,90 @@ class PaperTradingService:
                return trade
         
         return None
+
+    def update_trailing_stop(
+        self,
+        trade: dict,
+        current_price: float,
+    ) -> dict:
+        """Aggiorna lo stop loss quando il trade è in profitto."""
+
+        if not self.trailing_stop_enabled:
+           return trade
+
+        entry_price = float(trade["entry_price"])
+        current_stop_loss = float(trade["stop_loss"])
+        direction = trade["direction"]
+
+        if entry_price <= 0:
+            return trade
+
+        if direction == "Long":
+            performance_percentage = (
+                (current_price - entry_price)
+                / entry_price
+            ) * 100
+
+            if (
+                performance_percentage
+                < self.trailing_activation_percentage
+            ):
+                return trade
+
+            new_stop_loss = current_price * (
+                1 - self.trailing_distance_percentage / 100
+            )
+
+            if new_stop_loss <= current_stop_loss:
+                return trade
+
+        elif direction == "Short":
+            performance_percentage = (
+             (entry_price - current_price)
+             / entry_price
+            ) * 100
+
+            if (
+                performance_percentage
+                < self.trailing_activation_percentage
+            ):
+                return trade
+
+            new_stop_loss = current_price * (
+                1 + self.trailing_distance_percentage / 100
+            )
+
+            if new_stop_loss >= current_stop_loss:
+                return trade
+
+        else:
+            return trade
+
+        trades = self._load_trades()
+
+        for saved_trade in trades:
+            if (
+                saved_trade.get("id") == trade.get("id")
+                and saved_trade.get("status") == "open"
+            ):
+                old_stop_loss = float(
+                    saved_trade["stop_loss"]
+                )
+
+                saved_trade["stop_loss"] = round(
+                    new_stop_loss,
+                    8,
+                )
+
+                saved_trade["trailing_stop_active"] = True
+                saved_trade["previous_stop_loss"] = old_stop_loss
+
+                trade = saved_trade
+                break
+
+        self._save_trades(trades)
+
+        return trade
     
     def check_trade_exit(
      self,
@@ -167,9 +255,29 @@ class PaperTradingService:
           try:
              current_price = price_provider(symbol)
 
+             previous_stop_loss = float(
+                 trade["stop_loss"]
+            )
+
+             trade = self.update_trailing_stop(
+                 trade=trade,
+                 current_price=current_price,
+            )
+
+             updated_stop_loss = float(
+                 trade["stop_loss"]
+            )
+
+             if updated_stop_loss != previous_stop_loss:
+                 print(
+                     f"{symbol}: trailing stop aggiornato "
+                     f"da {previous_stop_loss:.2f} "
+                     f"a {updated_stop_loss:.2f}"
+                )
+
              closed_trade = self.check_trade_exit(
-                trade=trade,
-                current_price=current_price,
+                  trade=trade,
+                  current_price=current_price,
             )
              
              if closed_trade is not None:

@@ -83,3 +83,11 @@ class WalletService:
         "performance_percentage": performance_percentage,
         "position_size": position_size,
     }
+
+    def get_initial_balance(self) -> float:
+     wallet = self._load_wallet()
+     return wallet["initial_balance"]
+
+    def get_updated_at(self) -> str:
+     wallet = self._load_wallet()
+     return wallet["updated_at"]

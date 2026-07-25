@@ -16,6 +16,7 @@ from app.services.watchlist_service import WatchlistService
 from app.analysis.analysis_manager import AnalysisManager
 from app.analysis.report import AnalysisReport
 from app.utils.logger import log
+from app.services.wallet_dashboard_service import WalletDashboardService
 
 
 async def start_command(
@@ -34,6 +35,7 @@ async def start_command(
     "Comandi disponibili:\n"
     "/start - Mostra i comandi\n"
     "/saldo - Mostra il saldo Kraken\n"
+    "/wallet - Mostra saldo e posizioni aperte\n"
     "/journal - Mostra gli ultimi trade chiusi\n"
     "/performance - Mostra le performance del paper trading\n"
     "/prezzo BTC - Mostra il prezzo in EUR\n"
@@ -544,6 +546,83 @@ async def journal_command(
             "❌ Impossibile leggere il Trade Journal."
         )
 
+async def wallet_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Mostra lo stato operativo del paper wallet."""
+
+    if update.message is None:
+        return
+
+    try:
+        dashboard = WalletDashboardService().calculate()
+
+        lines = [
+            "💼 ATLAS WALLET",
+            "",
+            f"💰 Saldo: {dashboard['current_balance']:.2f} €",
+            f"💵 Disponibile: {dashboard['available_balance']:.2f} €",
+            f"📈 Capitale impegnato: {dashboard['committed_capital']:.2f} €",
+            (
+                "📊 P/L flottante: "
+                f"{dashboard['unrealized_profit_loss']:+.2f} €"
+            ),
+            f"📂 Posizioni aperte: {dashboard['open_positions']}",
+        ]
+
+        positions = dashboard["positions"]
+
+        if positions:
+            lines.extend(
+                [
+                    "",
+                    "────────────",
+                    "",
+                ]
+            )
+
+            for position in positions:
+                direction_icon = (
+                    "📈"
+                    if position["direction"] == "Long"
+                    else "📉"
+                )
+
+                lines.extend(
+                    [
+                        f"{direction_icon} {position['symbol']}",
+                        f"Direzione: {position['direction']}",
+                        f"Entrata: {position['entry_price']:.2f} €",
+                        f"Prezzo attuale: {position['current_price']:.2f} €",
+                        (
+                            "Performance: "
+                            f"{position['performance_percentage']:+.2f}%"
+                        ),
+                        (
+                            "P/L flottante: "
+                            f"{position['unrealized_profit_loss']:+.2f} €"
+                        ),
+                        "",
+                    ]
+                )
+
+        message = "\n".join(lines).strip()
+
+        await update.message.reply_text(message)
+
+        log("Wallet Dashboard inviato tramite Telegram")
+
+    except Exception as error:
+        log(
+            f"Errore nel comando /wallet: "
+            f"{error}"
+        )
+
+        await update.message.reply_text(
+            "❌ Impossibile leggere il Wallet Dashboard."
+        )
+
 def create_telegram_application() -> Application:
     """Crea e configura l'applicazione Telegram."""
 
@@ -589,6 +668,12 @@ def create_telegram_application() -> Application:
          CommandHandler(
          "journal",
          journal_command,
+        )
+    )
+    application.add_handler(
+         CommandHandler(
+         "wallet",
+         wallet_command,
         )
     )
     return application

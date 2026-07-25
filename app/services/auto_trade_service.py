@@ -8,15 +8,17 @@ class AutoTradeService:
     """Analizza il mercato e apre automaticamente trade simulati validi."""
 
     def __init__(
-        self,
-        max_open_trades: int = 2,
+       self,
+       max_open_trades: int = 2,
+       max_committed_percentage: float = 70.0,
     ) -> None:
-        self.analysis_manager = AnalysisManager()
-        self.paper_trading_service = PaperTradingService()
-        self.notification_service = NotificationService()
-        self.risk_manager = RiskManager()
-        self.wallet_service = WalletService()
-        self.max_open_trades = max_open_trades
+       self.analysis_manager = AnalysisManager()
+       self.paper_trading_service = PaperTradingService()
+       self.notification_service = NotificationService()
+       self.risk_manager = RiskManager()
+       self.wallet_service = WalletService()
+       self.max_open_trades = max_open_trades
+       self.max_committed_percentage = max_committed_percentage
 
     def analyze_and_open(self, symbol: str) -> dict:
         """
@@ -48,12 +50,53 @@ class AutoTradeService:
         
         account_balance = self.wallet_service.get_balance()
 
+        committed_capital = sum(
+           float(trade.get("position_size", 0.0))
+           for trade in open_trades
+        )
+
+        max_committed_capital = (
+           account_balance
+           * self.max_committed_percentage
+        ) / 100
+
         position_size = self.risk_manager.calculate_position_size(
          account_balance=account_balance,
          entry_price=analysis["entry_price"],
          stop_loss=analysis["stop_loss"],
          risk_percentage=2.0,
         )
+
+        remaining_committed_capital = (
+         max_committed_capital - committed_capital
+        )
+
+        if remaining_committed_capital <= 0:
+          return {
+             "trade_opened": False,
+             "status": "max_committed_capital_reached",
+             "reason": (
+                 "Limite di capitale impegnato raggiunto: "
+                 f"{self.max_committed_percentage:.0f}%."
+            ),
+            "analysis": analysis,
+        }
+
+        position_size = min(
+         position_size,
+         remaining_committed_capital,
+        )
+
+        if position_size <= 0:
+         return {
+             "trade_opened": False,
+             "status": "insufficient_available_capital",
+             "reason": (
+                 "Capitale disponibile insufficiente "
+                 "per aprire il trade."
+            ),
+            "analysis": analysis,
+        }
 
         trade = self.paper_trading_service.open_trade(
             symbol=symbol.upper(),

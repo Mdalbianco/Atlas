@@ -8,7 +8,7 @@ from telegram.ext import (
     CommandHandler,
     ContextTypes,
 )
-
+from app.services.trade_journal_service import TradeJournalService
 from app.services.statistics_service import StatisticsService
 from app.services.wallet_service import WalletService
 from app.exchange.exchange_manager import ExchangeManager
@@ -34,6 +34,7 @@ async def start_command(
     "Comandi disponibili:\n"
     "/start - Mostra i comandi\n"
     "/saldo - Mostra il saldo Kraken\n"
+    "/journal - Mostra gli ultimi trade chiusi\n"
     "/performance - Mostra le performance del paper trading\n"
     "/prezzo BTC - Mostra il prezzo in EUR\n"
     "/watch - Mostra la watchlist\n"
@@ -441,6 +442,108 @@ async def performance_command(
             "❌ Impossibile calcolare le performance."
         )
 
+async def journal_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Mostra gli ultimi trade chiusi registrati nel Journal."""
+
+    if update.message is None:
+        return
+
+    try:
+        journal = TradeJournalService()
+
+        recent_events = journal.get_recent_closed_trades(
+            limit=5
+        )
+
+        if not recent_events:
+            await update.message.reply_text(
+                "📒 TRADE JOURNAL\n\n"
+                "Non ci sono ancora trade chiusi."
+            )
+            return
+
+        lines = [
+            "📒 ULTIMI 5 TRADE",
+            "",
+        ]
+
+        for index, event in enumerate(
+            recent_events,
+            start=1,
+        ):
+            trade = event["data"]
+
+            symbol = trade.get(
+                "symbol",
+                "N/D",
+            )
+
+            direction = trade.get(
+                "direction",
+                "N/D",
+            )
+
+            result = trade.get(
+                "result",
+                "N/D",
+            )
+
+            performance = float(
+                trade.get(
+                    "profit_percentage",
+                    0.0,
+                )
+            )
+
+            profit_loss = float(
+                trade.get(
+                    "profit_loss",
+                    0.0,
+                )
+            )
+
+            duration = trade.get(
+                "duration",
+                "N/D",
+            )
+
+            result_icon = (
+                "✅"
+                if result == "win"
+                else "❌"
+            )
+
+            lines.extend(
+                [
+                    f"{index}. {symbol}",
+                    f"{result_icon} {result.upper()}",
+                    f"Direzione: {direction}",
+                    f"Performance: {performance:+.2f}%",
+                    f"Profitto/Perdita: {profit_loss:+.2f} €",
+                    f"Durata: {duration}",
+                    "",
+                ]
+            )
+
+        message = "\n".join(lines).strip()
+
+        await update.message.reply_text(message)
+
+        log("Trade Journal inviato tramite Telegram")
+
+    except Exception as error:
+        log(
+            f"Errore nel comando /journal: "
+            f"{error}"
+        )
+
+        await update.message.reply_text(
+            "❌ Impossibile leggere il Trade Journal."
+        )
+
 def create_telegram_application() -> Application:
     """Crea e configura l'applicazione Telegram."""
 
@@ -480,6 +583,12 @@ def create_telegram_application() -> Application:
         CommandHandler(
          "performance",
          performance_command,
+        )
+    )
+    application.add_handler(
+         CommandHandler(
+         "journal",
+         journal_command,
         )
     )
     return application

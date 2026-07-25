@@ -11,6 +11,7 @@ class AutoTradeService:
        self,
        max_open_trades: int = 2,
        max_committed_percentage: float = 70.0,
+       min_position_size: float = 10.0,
     ) -> None:
        self.analysis_manager = AnalysisManager()
        self.paper_trading_service = PaperTradingService()
@@ -19,6 +20,7 @@ class AutoTradeService:
        self.wallet_service = WalletService()
        self.max_open_trades = max_open_trades
        self.max_committed_percentage = max_committed_percentage
+       self.min_position_size = min_position_size
 
     def analyze_and_open(self, symbol: str) -> dict:
         """
@@ -87,16 +89,17 @@ class AutoTradeService:
          remaining_committed_capital,
         )
 
-        if position_size <= 0:
-         return {
+        if position_size < self.min_position_size:
+            return {
              "trade_opened": False,
-             "status": "insufficient_available_capital",
+             "status": "position_size_below_minimum",
              "reason": (
-                 "Capitale disponibile insufficiente "
-                 "per aprire il trade."
+                "Dimensione della posizione inferiore "
+                f"al minimo consentito di {self.min_position_size:.2f} €."
             ),
             "analysis": analysis,
-        }
+            "position_size": round(position_size, 2),
+            }
 
         trade = self.paper_trading_service.open_trade(
             symbol=symbol.upper(),

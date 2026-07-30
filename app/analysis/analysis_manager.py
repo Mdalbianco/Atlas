@@ -55,9 +55,21 @@ class AnalysisManager:
         )
 
         score = self.score_calculator.calculate(
-            trend=trend_result["trend"],
-            trend_strength=trend_result["strength"],
-            rsi=rsi_value,
+          trend=trend_result["trend"],
+          trend_strength=trend_result["strength"],
+          rsi=rsi_value,
+          action=decision["action"],
+          macd_status=macd_result["macd_status"],
+          atr_percentage=atr_result["atr_percentage"],
+        )
+
+        score_classification = self.score_calculator.classify(
+          score
+        )
+
+        score_acceptable = self.score_calculator.is_acceptable(
+         score=score,
+         minimum_score=65,
         )
         
         risk_manager = RiskManager()
@@ -74,6 +86,8 @@ class AnalysisManager:
          **macd_result,
          **decision,
          "score": score,
+         "score_classification": score_classification,
+         "score_acceptable": score_acceptable,
          "atr": atr_result["atr"],
          "atr_percentage": atr_result["atr_percentage"],
          "volatility": atr_result["volatility"],

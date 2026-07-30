@@ -30,6 +30,18 @@ class AutoTradeService:
 
         analysis = self.analysis_manager.analyze(symbol)
 
+        if not analysis.get("score_acceptable", False):
+            return {
+                "trade_opened": False,
+                "status": "score_below_minimum",
+                "reason": (
+                 "Qualità del setup insufficiente: "
+                 f"{analysis.get('score', 0)}/100 "
+                 f"({analysis.get('score_classification', 'Non classificato')})."
+                ),
+                "analysis": analysis,
+            }
+
         if not analysis["trade_available"]:
             return {
                 "trade_opened": False,

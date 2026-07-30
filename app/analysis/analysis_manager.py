@@ -6,6 +6,7 @@ from app.analysis.rsi import RSIAnalyzer
 from app.analysis.score import ScoreCalculator
 from app.analysis.trend import TrendAnalyzer
 from app.services.market_data_service import MarketDataService
+from app.analysis.confidence import ConfidenceCalculator
 
 
 class AnalysisManager:
@@ -18,6 +19,7 @@ class AnalysisManager:
         self.rsi_analyzer = RSIAnalyzer()
         self.macd_analyzer = MACDAnalyzer()
         self.score_calculator = ScoreCalculator()
+        self.confidence_calculator = ConfidenceCalculator()
 
     def analyze(self, symbol: str) -> dict:
         """Esegue l'analisi completa della crypto richiesta."""
@@ -71,6 +73,15 @@ class AnalysisManager:
          score=score,
          minimum_score=65,
         )
+
+        confidence = self.confidence_calculator.calculate(
+         score=score,
+         action=decision["action"],
+         trend=trend_result["trend"],
+         macd_status=macd_result["macd_status"],
+         rsi=rsi_value,
+         atr_percentage=atr_result["atr_percentage"],
+        )
         
         risk_manager = RiskManager()
         trade_result = risk_manager.calculate_trade_levels(
@@ -80,6 +91,7 @@ class AnalysisManager:
         )
 
         return {
+         **confidence,
          **trend_result,
          "rsi": rsi_value,
          "rsi_signal": rsi_signal,

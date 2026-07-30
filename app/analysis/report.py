@@ -30,6 +30,26 @@ class AnalysisReport:
             else "❌ No"
         )
 
+        confidence = result.get("confidence", 0)
+
+        confidence_classification = result.get(
+         "confidence_classification",
+         "Non classificata",
+        )
+
+        confidence_factors = result.get(
+         "confidence_factors",
+         [],
+        )
+
+        confidence_text = "\n".join(
+         f"• {factor}"
+         for factor in confidence_factors
+        )
+
+        if not confidence_text:
+         confidence_text = "• Nessun fattore disponibile"
+
         report = (
             "📊 ATLAS ANALYSIS\n\n"
             f"🪙 Coppia: {result['symbol']}\n\n"
@@ -46,6 +66,10 @@ class AnalysisReport:
             f"⭐ Qualità setup: {score}/100\n"
             f"🏅 Classificazione: {score_classification}\n"
             f"🛡️ Setup accettabile: {score_status}\n\n"
+            f"🤖 Confidenza Atlas: {confidence}/100\n"
+            f"📊 Livello: {confidence_classification}\n"
+            f"🧠 Fattori:\n"
+            f"{confidence_text}\n\n"
             f"🧠 Decisione: {result['action']}\n"
             f"🎯 Decision score: {result['decision_score']}\n\n"
             "📋 Motivazioni:\n"

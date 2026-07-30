@@ -33,6 +33,7 @@ async def start_command(
     "Sono Atlas.\n"
     "Il sistema Telegram è operativo.\n\n"
     "Comandi disponibili:\n"
+    "/analizza BTC - Analisi completa con score del setup\n"
     "/start - Mostra i comandi\n"
     "/saldo - Mostra il saldo Kraken\n"
     "/wallet - Mostra saldo e posizioni aperte\n"

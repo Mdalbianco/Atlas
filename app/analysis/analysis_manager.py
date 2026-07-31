@@ -73,6 +73,7 @@ class AnalysisManager:
           action=decision["action"],
           macd_status=macd_result["macd_status"],
           atr_percentage=atr_result["atr_percentage"],
+          market_regime=market_regime["market_regime"],
         )
 
         score_classification = self.score_calculator.classify(
@@ -91,6 +92,7 @@ class AnalysisManager:
          macd_status=macd_result["macd_status"],
          rsi=rsi_value,
          atr_percentage=atr_result["atr_percentage"],
+         market_regime=market_regime["market_regime"],
         )
         
         risk_manager = RiskManager()

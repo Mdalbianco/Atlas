@@ -9,6 +9,7 @@ class ConfidenceCalculator:
         macd_status: str,
         rsi: float,
         atr_percentage: float,
+        market_regime: str = "Non classificato",
     ) -> dict:
         confidence = float(score)
         factors = []
@@ -67,6 +68,16 @@ class ConfidenceCalculator:
             confidence -= 10
             factors.append("Volatilità eccessiva")
 
+        regime_adjustment = self._calculate_market_regime_adjustment(
+            action=action,
+            market_regime=market_regime,
+        )
+
+        confidence += regime_adjustment["value"]
+
+        if regime_adjustment["factor"]:
+            factors.append(regime_adjustment["factor"])
+
         confidence = max(
             0,
             min(round(confidence), 100),
@@ -76,6 +87,98 @@ class ConfidenceCalculator:
             "confidence": confidence,
             "confidence_classification": self.classify(confidence),
             "confidence_factors": factors,
+        }
+
+    def _calculate_market_regime_adjustment(
+        self,
+        action: str,
+        market_regime: str,
+    ) -> dict:
+        """Modifica la confidenza in base al regime di mercato."""
+
+        if action == "Attendere":
+            if market_regime == "Mercato piatto":
+                return {
+                    "value": -5,
+                    "factor": "Mercato piatto senza opportunità operative",
+                }
+
+            if market_regime == "Alta volatilità":
+                return {
+                    "value": -5,
+                    "factor": "Regime instabile senza direzione confermata",
+                }
+
+            return {
+                "value": 0,
+                "factor": "",
+            }
+
+        if market_regime == "Mercato piatto":
+            return {
+                "value": -15,
+                "factor": "Regime piatto sfavorevole al setup",
+            }
+
+        if market_regime == "Alta volatilità":
+            return {
+                "value": -10,
+                "factor": "Alta volatilità riduce l'affidabilità",
+            }
+
+        if action == "Possibile acquisto":
+            if market_regime == "Trend rialzista forte":
+                return {
+                    "value": 10,
+                    "factor": "Regime fortemente favorevole al Long",
+                }
+
+            if market_regime == "Trend rialzista debole":
+                return {
+                    "value": 5,
+                    "factor": "Regime favorevole al Long",
+                }
+
+            if market_regime == "Trend ribassista forte":
+                return {
+                    "value": -15,
+                    "factor": "Regime fortemente contrario al Long",
+                }
+
+            if market_regime == "Trend ribassista debole":
+                return {
+                    "value": -5,
+                    "factor": "Regime contrario al Long",
+                }
+
+        if action == "Possibile vendita":
+            if market_regime == "Trend ribassista forte":
+                return {
+                    "value": 10,
+                    "factor": "Regime fortemente favorevole allo Short",
+                }
+
+            if market_regime == "Trend ribassista debole":
+                return {
+                    "value": 5,
+                    "factor": "Regime favorevole allo Short",
+                }
+
+            if market_regime == "Trend rialzista forte":
+                return {
+                    "value": -15,
+                    "factor": "Regime fortemente contrario allo Short",
+                }
+
+            if market_regime == "Trend rialzista debole":
+                return {
+                    "value": -5,
+                    "factor": "Regime contrario allo Short",
+                }
+
+        return {
+            "value": 0,
+            "factor": "",
         }
 
     def classify(self, confidence: int) -> str:

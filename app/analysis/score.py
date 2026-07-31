@@ -9,6 +9,7 @@ class ScoreCalculator:
         action: str = "Attendere",
         macd_status: str = "Neutrale",
         atr_percentage: float = 0.0,
+        market_regime: str = "Non classificato",
     ) -> int:
         score = 50
 
@@ -46,6 +47,11 @@ class ScoreCalculator:
 
         score += self._calculate_volatility_score(
             atr_percentage
+        )
+
+        score += self._calculate_market_regime_score(
+            action=action,
+            market_regime=market_regime,
         )
 
         score = max(
@@ -196,5 +202,52 @@ class ScoreCalculator:
 
         if atr_percentage > 6.00:
             return -10
+
+        return 0
+
+    def _calculate_market_regime_score(
+        self,
+        action: str,
+        market_regime: str,
+    ) -> int:
+        """
+        Premia i setup coerenti con il regime di mercato
+        e penalizza quelli inadatti al contesto.
+        """
+
+        if action == "Attendere":
+            return 0
+
+        if market_regime == "Mercato piatto":
+            return -15
+
+        if market_regime == "Alta volatilità":
+            return -10
+
+        if action == "Possibile acquisto":
+            if market_regime == "Trend rialzista forte":
+                return 10
+
+            if market_regime == "Trend ribassista forte":
+                return -15
+
+            if market_regime == "Trend rialzista debole":
+                return 5
+
+            if market_regime == "Trend ribassista debole":
+                return -5
+
+        if action == "Possibile vendita":
+            if market_regime == "Trend ribassista forte":
+                return 10
+
+            if market_regime == "Trend rialzista forte":
+                return -15
+
+            if market_regime == "Trend ribassista debole":
+                return 5
+
+            if market_regime == "Trend rialzista debole":
+                return -5
 
         return 0

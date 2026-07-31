@@ -7,6 +7,7 @@ from app.analysis.score import ScoreCalculator
 from app.analysis.trend import TrendAnalyzer
 from app.services.market_data_service import MarketDataService
 from app.analysis.confidence import ConfidenceCalculator
+from app.analysis.market_regime import MarketRegimeDetector
 
 
 class AnalysisManager:
@@ -20,6 +21,7 @@ class AnalysisManager:
         self.macd_analyzer = MACDAnalyzer()
         self.score_calculator = ScoreCalculator()
         self.confidence_calculator = ConfidenceCalculator()
+        self.market_regime_detector = MarketRegimeDetector()
 
     def analyze(self, symbol: str) -> dict:
         """Esegue l'analisi completa della crypto richiesta."""
@@ -49,6 +51,14 @@ class AnalysisManager:
 
         atr_analyzer = ATRAnalyzer()
         atr_result = atr_analyzer.calculate(dataframe)
+
+        market_regime = self.market_regime_detector.detect(
+         trend=trend_result["trend"],
+         trend_strength=trend_result["strength"],
+         atr_percentage=atr_result["atr_percentage"],
+         rsi=rsi_value,
+         macd_status=macd_result["macd_status"],
+        )
 
         decision = self.decision_engine.analyze(
          trend=trend_result["trend"],
@@ -92,6 +102,7 @@ class AnalysisManager:
 
         return {
          **confidence,
+         **market_regime,
          **trend_result,
          "rsi": rsi_value,
          "rsi_signal": rsi_signal,

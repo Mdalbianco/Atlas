@@ -50,6 +50,29 @@ class AnalysisReport:
         if not confidence_text:
          confidence_text = "• Nessun fattore disponibile"
 
+        market_regime = result.get(
+         "market_regime",
+         "Non classificato",
+        )
+
+        market_regime_score = result.get(
+         "market_regime_score",
+         0,
+        )
+
+        market_regime_factors = result.get(
+         "market_regime_factors",
+         [],
+        )
+
+        market_regime_text = "\n".join(
+         f"• {factor}"
+         for factor in market_regime_factors
+        )
+
+        if not market_regime_text:
+         market_regime_text = "• Nessun fattore disponibile"
+
         report = (
             "📊 ATLAS ANALYSIS\n\n"
             f"🪙 Coppia: {result['symbol']}\n\n"
@@ -63,6 +86,10 @@ class AnalysisReport:
             f"🌡️ ATR: {result['atr']:.4f}\n"
             f"🌪️ Volatilità: {result['volatility']} "
             f"({result['atr_percentage']:.2f}%)\n\n"
+            f"🌍 Regime di mercato: {market_regime}\n"
+            f"📊 Score regime: {market_regime_score}/100\n"
+            f"🔎 Fattori del regime:\n"
+            f"{market_regime_text}\n\n"
             f"⭐ Qualità setup: {score}/100\n"
             f"🏅 Classificazione: {score_classification}\n"
             f"🛡️ Setup accettabile: {score_status}\n\n"

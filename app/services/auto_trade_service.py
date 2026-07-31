@@ -30,21 +30,35 @@ class AutoTradeService:
 
         analysis = self.analysis_manager.analyze(symbol)
 
+        minimum_confidence = 65
+
         if not analysis.get("score_acceptable", False):
             return {
+            "trade_opened": False,
+            "status": "score_below_minimum",
+            "reason": (
+                "Qualità del setup insufficiente: "
+                f"{analysis.get('score', 0)}/100."
+            ),
+            "analysis": analysis,
+        }
+
+        if analysis.get("confidence", 0) < minimum_confidence:
+            return {
                 "trade_opened": False,
-                "status": "score_below_minimum",
+                "status": "confidence_below_minimum",
                 "reason": (
-                 "Qualità del setup insufficiente: "
-                 f"{analysis.get('score', 0)}/100 "
-                 f"({analysis.get('score_classification', 'Non classificato')})."
+                    "Confidenza insufficiente: "
+                    f"{analysis.get('confidence', 0)}/100. "
+                    f"Minimo richiesto: {minimum_confidence}/100."
                 ),
                 "analysis": analysis,
             }
 
-        if not analysis["trade_available"]:
+        if not analysis.get("trade_available", False):
             return {
                 "trade_opened": False,
+                "status": "no_trade_plan",
                 "reason": "Nessun piano operativo disponibile.",
                 "analysis": analysis,
             }

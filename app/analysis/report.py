@@ -73,6 +73,50 @@ class AnalysisReport:
         if not market_regime_text:
          market_regime_text = "• Nessun fattore disponibile"
 
+        lower_timeframe_trend = result.get(
+            "lower_timeframe_trend",
+            "Non disponibile",
+        )
+
+        higher_timeframe_trend = result.get(
+            "higher_timeframe_trend",
+            "Non disponibile",
+        )
+
+        timeframe_alignment = result.get(
+            "timeframe_alignment",
+            "Non classificato",
+        )
+
+        timeframe_alignment_score = result.get(
+            "timeframe_alignment_score",
+            0,
+        )
+
+        timeframe_aligned = result.get(
+            "timeframe_aligned",
+            False,
+        )
+
+        timeframe_status = (
+            "✅ Sì"
+            if timeframe_aligned
+            else "❌ No"
+        )
+
+        timeframe_factors = result.get(
+            "timeframe_factors",
+            [],
+        )
+
+        timeframe_factors_text = "\n".join(
+            f"• {factor}"
+            for factor in timeframe_factors
+        )
+
+        if not timeframe_factors_text:
+            timeframe_factors_text = "• Nessun fattore disponibile"
+
         report = (
             "📊 ATLAS ANALYSIS\n\n"
             f"🪙 Coppia: {result['symbol']}\n\n"
@@ -87,6 +131,13 @@ class AnalysisReport:
             f"🌪️ Volatilità: {result['volatility']} "
             f"({result['atr_percentage']:.2f}%)\n\n"
             f"🌍 Regime di mercato: {market_regime}\n"
+            f"🕐 Trend 1H: {lower_timeframe_trend}\n"
+            f"🕓 Trend 4H: {higher_timeframe_trend}\n"
+            f"🤝 Allineamento: {timeframe_alignment}\n"
+            f"📊 Score timeframe: {timeframe_alignment_score}/100\n"
+            f"🛡️ Timeframe compatibili: {timeframe_status}\n"
+            f"🔎 Fattori timeframe:\n"
+            f"{timeframe_factors_text}\n\n"
             f"📊 Score regime: {market_regime_score}/100\n"
             f"🔎 Fattori del regime:\n"
             f"{market_regime_text}\n\n"

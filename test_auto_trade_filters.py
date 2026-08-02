@@ -32,6 +32,32 @@ def test_rejects_low_confidence() -> None:
     assert result["trade_opened"] is False
     assert result["status"] == "confidence_below_minimum"
 
+def test_rejects_unaligned_timeframes() -> None:
+    service = build_service()
+
+    fake_analysis = {
+        "score": 80,
+        "score_acceptable": True,
+        "score_classification": "Ottimo",
+        "confidence": 85,
+        "trade_available": True,
+        "timeframe_aligned": False,
+        "lower_timeframe_trend": "Rialzista",
+        "higher_timeframe_trend": "Ribassista",
+    }
+
+    with patch.object(
+        service.analysis_manager,
+        "analyze",
+        return_value=fake_analysis,
+    ):
+        result = service.analyze_and_open("BTC")
+
+    assert result["trade_opened"] is False
+    assert result["status"] == "timeframe_not_aligned"
+    assert "1H Rialzista" in result["reason"]
+    assert "4H Ribassista" in result["reason"]
+
 
 def test_opens_valid_trade() -> None:
     service = build_service()
@@ -42,6 +68,9 @@ def test_opens_valid_trade() -> None:
         "score_classification": "Ottimo",
         "confidence": 85,
         "trade_available": True,
+        "timeframe_aligned": True,
+        "lower_timeframe_trend": "Rialzista",
+        "higher_timeframe_trend": "Rialzista",
         "entry_price": 100.0,
         "stop_loss": 98.0,
         "take_profit": 104.0,
@@ -103,6 +132,7 @@ def test_opens_valid_trade() -> None:
 
 if __name__ == "__main__":
     test_rejects_low_confidence()
+    test_rejects_unaligned_timeframes()
     test_opens_valid_trade()
 
     print("✅ Tutti i test dei filtri auto-trade sono passati.")

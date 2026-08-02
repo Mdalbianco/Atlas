@@ -8,6 +8,7 @@ from app.analysis.trend import TrendAnalyzer
 from app.services.market_data_service import MarketDataService
 from app.analysis.confidence import ConfidenceCalculator
 from app.analysis.market_regime import MarketRegimeDetector
+from app.analysis.multi_timeframe import MultiTimeframeAnalyzer
 
 
 class AnalysisManager:
@@ -22,6 +23,7 @@ class AnalysisManager:
         self.score_calculator = ScoreCalculator()
         self.confidence_calculator = ConfidenceCalculator()
         self.market_regime_detector = MarketRegimeDetector()
+        self.multi_timeframe_analyzer = MultiTimeframeAnalyzer()
 
     def analyze(self, symbol: str) -> dict:
         """Esegue l'analisi completa della crypto richiesta."""
@@ -32,9 +34,20 @@ class AnalysisManager:
             limit=100,
         )
 
+        higher_dataframe = self.market_data_service.get_candles(
+            symbol=symbol,
+            timeframe="4h",
+            limit=100,
+        )
+
         trend_result = self.trend_analyzer.analyze(
             symbol=symbol,
             dataframe=dataframe,
+        )
+
+        higher_trend_result = self.trend_analyzer.analyze(
+            symbol=symbol,
+            dataframe=higher_dataframe,
         )
 
         rsi_value = self.rsi_analyzer.calculate(
@@ -64,6 +77,14 @@ class AnalysisManager:
          trend=trend_result["trend"],
          rsi=rsi_value,
          macd_status=macd_result["macd_status"],
+        )
+
+        multi_timeframe = self.multi_timeframe_analyzer.analyze(
+            lower_trend=trend_result["trend"],
+            lower_strength=trend_result["strength"],
+            higher_trend=higher_trend_result["trend"],
+            higher_strength=higher_trend_result["strength"],
+            action=decision["action"],
         )
 
         score = self.score_calculator.calculate(
@@ -105,6 +126,7 @@ class AnalysisManager:
         return {
          **confidence,
          **market_regime,
+         **multi_timeframe,
          **trend_result,
          "rsi": rsi_value,
          "rsi_signal": rsi_signal,

@@ -55,6 +55,19 @@ class AutoTradeService:
                 "analysis": analysis,
             }
 
+        if not analysis.get("timeframe_aligned", False):
+            return {
+                "trade_opened": False,
+                "status": "timeframe_not_aligned",
+                "reason": (
+                    "Timeframe non compatibili: "
+                    f"1H {analysis.get('lower_timeframe_trend', 'N/D')}, "
+                    f"4H {analysis.get('higher_timeframe_trend', 'N/D')}. "
+                    "Il trade è stato bloccato."
+                ),
+                "analysis": analysis,
+            }
+
         if not analysis.get("trade_available", False):
             return {
                 "trade_opened": False,

@@ -12,6 +12,8 @@ class ScoreCalculator:
         market_regime: str = "Non classificato",
         timeframe_alignment_score: int = 0,
         timeframe_aligned: bool = False,
+        near_support: bool = False,
+        near_resistance: bool = False,
     ) -> int:
         score = 50
 
@@ -60,6 +62,12 @@ class ScoreCalculator:
             action=action,
             timeframe_alignment_score=timeframe_alignment_score,
             timeframe_aligned=timeframe_aligned,
+        )
+
+        score += self._calculate_support_resistance_score(
+            action=action,
+            near_support=near_support,
+            near_resistance=near_resistance,
         )
 
         score = max(
@@ -298,3 +306,33 @@ class ScoreCalculator:
             return -15
 
         return -10
+
+    def _calculate_support_resistance_score(
+        self,
+        action: str,
+        near_support: bool,
+        near_resistance: bool,
+    ) -> int:
+        """
+        Premia i setup vicini a un livello favorevole
+        e penalizza quelli vicini a un livello contrario.
+        """
+
+        if action == "Attendere":
+            return 0
+
+        if action == "Possibile acquisto":
+            if near_resistance:
+                return -20
+
+            if near_support:
+                return 10
+
+        if action == "Possibile vendita":
+            if near_support:
+                return -20
+
+            if near_resistance:
+                return 10
+
+        return 0

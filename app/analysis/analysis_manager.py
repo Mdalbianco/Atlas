@@ -108,6 +108,8 @@ class AnalysisManager:
             timeframe_aligned=multi_timeframe[
                 "timeframe_aligned"
             ],
+            near_support=support_resistance["near_support"],
+            near_resistance=support_resistance["near_resistance"],
         )
 
         score_classification = self.score_calculator.classify(
@@ -115,8 +117,8 @@ class AnalysisManager:
         )
 
         score_acceptable = self.score_calculator.is_acceptable(
-         score=score,
-         minimum_score=65,
+            score=score,
+            minimum_score=65,
         )
 
         confidence = self.confidence_calculator.calculate(

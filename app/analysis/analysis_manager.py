@@ -9,6 +9,7 @@ from app.services.market_data_service import MarketDataService
 from app.analysis.confidence import ConfidenceCalculator
 from app.analysis.market_regime import MarketRegimeDetector
 from app.analysis.multi_timeframe import MultiTimeframeAnalyzer
+from app.analysis.support_resistance import SupportResistanceAnalyzer
 
 
 class AnalysisManager:
@@ -24,6 +25,7 @@ class AnalysisManager:
         self.confidence_calculator = ConfidenceCalculator()
         self.market_regime_detector = MarketRegimeDetector()
         self.multi_timeframe_analyzer = MultiTimeframeAnalyzer()
+        self.support_resistance_analyzer = SupportResistanceAnalyzer()
 
     def analyze(self, symbol: str) -> dict:
         """Esegue l'analisi completa della crypto richiesta."""
@@ -64,6 +66,11 @@ class AnalysisManager:
 
         atr_analyzer = ATRAnalyzer()
         atr_result = atr_analyzer.calculate(dataframe)
+
+        support_resistance = self.support_resistance_analyzer.analyze(
+            dataframe=dataframe,
+            current_price=trend_result["current_price"],
+        )
 
         market_regime = self.market_regime_detector.detect(
          trend=trend_result["trend"],
@@ -139,6 +146,7 @@ class AnalysisManager:
          **confidence,
          **market_regime,
          **multi_timeframe,
+         **support_resistance,
          **trend_result,
          "rsi": rsi_value,
          "rsi_signal": rsi_signal,

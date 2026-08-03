@@ -10,6 +10,8 @@ class ConfidenceCalculator:
         rsi: float,
         atr_percentage: float,
         market_regime: str = "Non classificato",
+        timeframe_alignment_score: int = 0,
+        timeframe_aligned: bool = False,
     ) -> dict:
         confidence = float(score)
         factors = []
@@ -77,6 +79,17 @@ class ConfidenceCalculator:
 
         if regime_adjustment["factor"]:
             factors.append(regime_adjustment["factor"])
+
+        timeframe_adjustment = self._calculate_timeframe_adjustment(
+            action=action,
+            timeframe_alignment_score=timeframe_alignment_score,
+            timeframe_aligned=timeframe_aligned,
+        )
+
+        confidence += timeframe_adjustment["value"]
+
+        if timeframe_adjustment["factor"]:
+            factors.append(timeframe_adjustment["factor"])
 
         confidence = max(
             0,
@@ -179,6 +192,61 @@ class ConfidenceCalculator:
         return {
             "value": 0,
             "factor": "",
+        }
+
+    def _calculate_timeframe_adjustment(
+        self,
+        action: str,
+        timeframe_alignment_score: int,
+        timeframe_aligned: bool,
+    ) -> dict:
+        """Modifica la confidenza in base all'allineamento 1H/4H."""
+
+        if action == "Attendere":
+            return {
+                "value": 0,
+                "factor": "",
+            }
+
+        normalized_score = max(
+            0,
+            min(int(timeframe_alignment_score), 100),
+        )
+
+        if timeframe_aligned:
+            if normalized_score >= 85:
+                return {
+                    "value": 15,
+                    "factor": "Allineamento multi-timeframe molto forte",
+                }
+
+            if normalized_score >= 70:
+                return {
+                    "value": 10,
+                    "factor": "Allineamento multi-timeframe favorevole",
+                }
+
+            if normalized_score >= 65:
+                return {
+                    "value": 5,
+                    "factor": "Allineamento multi-timeframe sufficiente",
+                }
+
+        if normalized_score < 40:
+            return {
+                "value": -20,
+                "factor": "Timeframe fortemente contrari",
+            }
+
+        if normalized_score < 55:
+            return {
+                "value": -15,
+                "factor": "Timeframe contrari",
+            }
+
+        return {
+            "value": -10,
+            "factor": "Timeframe non pienamente coerenti",
         }
 
     def classify(self, confidence: int) -> str:

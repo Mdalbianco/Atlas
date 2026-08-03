@@ -10,6 +10,8 @@ class ScoreCalculator:
         macd_status: str = "Neutrale",
         atr_percentage: float = 0.0,
         market_regime: str = "Non classificato",
+        timeframe_alignment_score: int = 0,
+        timeframe_aligned: bool = False,
     ) -> int:
         score = 50
 
@@ -52,6 +54,12 @@ class ScoreCalculator:
         score += self._calculate_market_regime_score(
             action=action,
             market_regime=market_regime,
+        )
+
+        score += self._calculate_timeframe_score(
+            action=action,
+            timeframe_alignment_score=timeframe_alignment_score,
+            timeframe_aligned=timeframe_aligned,
         )
 
         score = max(
@@ -251,3 +259,42 @@ class ScoreCalculator:
                 return -5
 
         return 0
+
+    def _calculate_timeframe_score(
+        self,
+        action: str,
+        timeframe_alignment_score: int,
+        timeframe_aligned: bool,
+    ) -> int:
+        """
+        Premia i setup operativi coerenti tra 1H e 4H
+        e penalizza quelli contrari al timeframe superiore.
+        """
+
+        if action == "Attendere":
+            return 0
+
+        normalized_score = max(
+            0,
+            min(int(timeframe_alignment_score), 100),
+        )
+
+        if timeframe_aligned:
+            if normalized_score >= 85:
+                return 15
+
+            if normalized_score >= 70:
+                return 10
+
+            if normalized_score >= 65:
+                return 5
+
+            return 0
+
+        if normalized_score < 40:
+            return -20
+
+        if normalized_score < 55:
+            return -15
+
+        return -10

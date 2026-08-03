@@ -88,13 +88,19 @@ class AnalysisManager:
         )
 
         score = self.score_calculator.calculate(
-          trend=trend_result["trend"],
-          trend_strength=trend_result["strength"],
-          rsi=rsi_value,
-          action=decision["action"],
-          macd_status=macd_result["macd_status"],
-          atr_percentage=atr_result["atr_percentage"],
-          market_regime=market_regime["market_regime"],
+            trend=trend_result["trend"],
+            trend_strength=trend_result["strength"],
+            rsi=rsi_value,
+            action=decision["action"],
+            macd_status=macd_result["macd_status"],
+            atr_percentage=atr_result["atr_percentage"],
+            market_regime=market_regime["market_regime"],
+            timeframe_alignment_score=multi_timeframe[
+                "timeframe_alignment_score"
+            ],
+            timeframe_aligned=multi_timeframe[
+                "timeframe_aligned"
+            ],
         )
 
         score_classification = self.score_calculator.classify(
@@ -107,13 +113,19 @@ class AnalysisManager:
         )
 
         confidence = self.confidence_calculator.calculate(
-         score=score,
-         action=decision["action"],
-         trend=trend_result["trend"],
-         macd_status=macd_result["macd_status"],
-         rsi=rsi_value,
-         atr_percentage=atr_result["atr_percentage"],
-         market_regime=market_regime["market_regime"],
+            score=score,
+            action=decision["action"],
+            trend=trend_result["trend"],
+            macd_status=macd_result["macd_status"],
+            rsi=rsi_value,
+            atr_percentage=atr_result["atr_percentage"],
+            market_regime=market_regime["market_regime"],
+            timeframe_alignment_score=multi_timeframe[
+                "timeframe_alignment_score"
+            ],
+            timeframe_aligned=multi_timeframe[
+                "timeframe_aligned"
+            ],
         )
         
         risk_manager = RiskManager()

@@ -68,6 +68,17 @@ class AutoTradeService:
                 "analysis": analysis,
             }
 
+        if analysis.get("market_regime") == "Mercato piatto":
+            return {
+                "trade_opened": False,
+                "status": "flat_market",
+                "reason": (
+                    "Mercato laterale rilevato. "
+                    "Atlas attende una direzione più chiara."
+                ),
+                "analysis": analysis,
+            }
+
         if not analysis.get("trade_available", False):
             return {
                 "trade_opened": False,

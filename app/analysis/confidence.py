@@ -12,6 +12,8 @@ class ConfidenceCalculator:
         market_regime: str = "Non classificato",
         timeframe_alignment_score: int = 0,
         timeframe_aligned: bool = False,
+        near_support: bool = False,
+        near_resistance: bool = False,
     ) -> dict:
         confidence = float(score)
         factors = []
@@ -90,6 +92,21 @@ class ConfidenceCalculator:
 
         if timeframe_adjustment["factor"]:
             factors.append(timeframe_adjustment["factor"])
+
+        support_resistance_adjustment = (
+            self._calculate_support_resistance_adjustment(
+                action=action,
+                near_support=near_support,
+                near_resistance=near_resistance,
+            )
+        )
+
+        confidence += support_resistance_adjustment["value"]
+
+        if support_resistance_adjustment["factor"]:
+            factors.append(
+                support_resistance_adjustment["factor"]
+            )
 
         confidence = max(
             0,
@@ -247,6 +264,62 @@ class ConfidenceCalculator:
         return {
             "value": -10,
             "factor": "Timeframe non pienamente coerenti",
+        }
+
+    def _calculate_support_resistance_adjustment(
+        self,
+        action: str,
+        near_support: bool,
+        near_resistance: bool,
+    ) -> dict:
+        """
+        Modifica la confidenza in base alla vicinanza
+        a supporti e resistenze.
+        """
+
+        if action == "Attendere":
+            return {
+                "value": 0,
+                "factor": "",
+            }
+
+        if action == "Possibile acquisto":
+            if near_resistance:
+                return {
+                    "value": -20,
+                    "factor": (
+                        "Long troppo vicino a una resistenza"
+                    ),
+                }
+
+            if near_support:
+                return {
+                    "value": 10,
+                    "factor": (
+                        "Supporto favorevole al Long"
+                    ),
+                }
+
+        if action == "Possibile vendita":
+            if near_support:
+                return {
+                    "value": -20,
+                    "factor": (
+                        "Short troppo vicino a un supporto"
+                    ),
+                }
+
+            if near_resistance:
+                return {
+                    "value": 10,
+                    "factor": (
+                        "Resistenza favorevole allo Short"
+                    ),
+                }
+
+        return {
+            "value": 0,
+            "factor": "",
         }
 
     def classify(self, confidence: int) -> str:

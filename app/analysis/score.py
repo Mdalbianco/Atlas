@@ -16,6 +16,7 @@ class ScoreCalculator:
         near_resistance: bool = False,
         extended_candle: bool = False,
         last_candle_direction: str = "Neutrale",
+        volume_status: str = "Normale",
     ) -> int:
         score = 50
 
@@ -76,6 +77,11 @@ class ScoreCalculator:
             action=action,
             extended_candle=extended_candle,
             last_candle_direction=last_candle_direction,
+        )
+
+        score += self._calculate_volume_score(
+            action=action,
+            volume_status=volume_status,
         )
 
         score = max(
@@ -375,3 +381,24 @@ class ScoreCalculator:
             return -20
 
         return -5
+
+    def _calculate_volume_score(
+        self,
+        action: str,
+        volume_status: str,
+    ) -> int:
+        """
+        Premia i segnali operativi sostenuti da volume alto
+        e penalizza quelli con volume basso.
+        """
+
+        if action == "Attendere":
+            return 0
+
+        if volume_status == "Alto":
+            return 10
+
+        if volume_status == "Basso":
+            return -15
+
+        return 0

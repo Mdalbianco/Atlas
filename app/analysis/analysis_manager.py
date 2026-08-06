@@ -127,6 +127,7 @@ class AnalysisManager:
             last_candle_direction=candle_context[
                "last_candle_direction"
             ],
+            volume_status=volume_result["volume_status"],
             )
 
         score_classification = self.score_calculator.classify(

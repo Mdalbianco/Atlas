@@ -10,6 +10,7 @@ from app.analysis.confidence import ConfidenceCalculator
 from app.analysis.market_regime import MarketRegimeDetector
 from app.analysis.multi_timeframe import MultiTimeframeAnalyzer
 from app.analysis.support_resistance import SupportResistanceAnalyzer
+from app.analysis.candle_context import CandleContextAnalyzer
 
 
 class AnalysisManager:
@@ -26,6 +27,7 @@ class AnalysisManager:
         self.market_regime_detector = MarketRegimeDetector()
         self.multi_timeframe_analyzer = MultiTimeframeAnalyzer()
         self.support_resistance_analyzer = SupportResistanceAnalyzer()
+        self.candle_context_analyzer = CandleContextAnalyzer()
 
     def analyze(self, symbol: str) -> dict:
         """Esegue l'analisi completa della crypto richiesta."""
@@ -66,6 +68,11 @@ class AnalysisManager:
 
         atr_analyzer = ATRAnalyzer()
         atr_result = atr_analyzer.calculate(dataframe)
+
+        candle_context = self.candle_context_analyzer.analyze(
+            dataframe=dataframe,
+            atr=atr_result["atr"],
+        )
 
         support_resistance = self.support_resistance_analyzer.analyze(
             dataframe=dataframe,
@@ -149,6 +156,7 @@ class AnalysisManager:
          **market_regime,
          **multi_timeframe,
          **support_resistance,
+         **candle_context,
          **trend_result,
          "rsi": rsi_value,
          "rsi_signal": rsi_signal,

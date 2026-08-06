@@ -14,6 +14,8 @@ class ConfidenceCalculator:
         timeframe_aligned: bool = False,
         near_support: bool = False,
         near_resistance: bool = False,
+        extended_candle: bool = False,
+        last_candle_direction: str = "Neutrale",
     ) -> dict:
         confidence = float(score)
         factors = []
@@ -106,6 +108,21 @@ class ConfidenceCalculator:
         if support_resistance_adjustment["factor"]:
             factors.append(
                 support_resistance_adjustment["factor"]
+            )
+
+        candle_context_adjustment = (
+            self._calculate_candle_context_adjustment(
+                action=action,
+                extended_candle=extended_candle,
+                last_candle_direction=last_candle_direction,
+            )
+        )
+
+        confidence += candle_context_adjustment["value"]
+
+        if candle_context_adjustment["factor"]:
+            factors.append(
+                candle_context_adjustment["factor"]
             )
 
         confidence = max(
@@ -320,6 +337,58 @@ class ConfidenceCalculator:
         return {
             "value": 0,
             "factor": "",
+        }
+
+    def _calculate_candle_context_adjustment(
+        self,
+        action: str,
+        extended_candle: bool,
+        last_candle_direction: str,
+    ) -> dict:
+        """
+        Penalizza gli ingressi tardivi dopo una candela
+        estesa nella stessa direzione del trade.
+        """
+
+        if action == "Attendere":
+            return {
+                "value": 0,
+                "factor": "",
+            }
+
+        if not extended_candle:
+            return {
+                "value": 0,
+                "factor": "",
+            }
+
+        if (
+            action == "Possibile acquisto"
+            and last_candle_direction == "Rialzista"
+        ):
+            return {
+                "value": -20,
+                "factor": (
+                    "Long dopo una candela rialzista troppo estesa"
+                ),
+            }
+
+        if (
+            action == "Possibile vendita"
+            and last_candle_direction == "Ribassista"
+        ):
+            return {
+                "value": -20,
+                "factor": (
+                    "Short dopo una candela ribassista troppo estesa"
+                ),
+            }
+
+        return {
+            "value": -5,
+            "factor": (
+                "Ultima candela estesa in direzione opposta"
+            ),
         }
 
     def classify(self, confidence: int) -> str:

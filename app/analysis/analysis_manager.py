@@ -117,7 +117,11 @@ class AnalysisManager:
             ],
             near_support=support_resistance["near_support"],
             near_resistance=support_resistance["near_resistance"],
-        )
+            extended_candle=candle_context["extended_candle"],
+            last_candle_direction=candle_context[
+               "last_candle_direction"
+            ],
+            )
 
         score_classification = self.score_calculator.classify(
           score
@@ -141,6 +145,12 @@ class AnalysisManager:
             ],
             timeframe_aligned=multi_timeframe[
                 "timeframe_aligned"
+            ],
+            near_support=support_resistance["near_support"],
+            near_resistance=support_resistance["near_resistance"],
+            extended_candle=candle_context["extended_candle"],
+            last_candle_direction=candle_context[
+                "last_candle_direction"
             ],
         )
         

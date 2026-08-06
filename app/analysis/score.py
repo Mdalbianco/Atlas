@@ -14,6 +14,8 @@ class ScoreCalculator:
         timeframe_aligned: bool = False,
         near_support: bool = False,
         near_resistance: bool = False,
+        extended_candle: bool = False,
+        last_candle_direction: str = "Neutrale",
     ) -> int:
         score = 50
 
@@ -68,6 +70,12 @@ class ScoreCalculator:
             action=action,
             near_support=near_support,
             near_resistance=near_resistance,
+        )
+
+        score += self._calculate_candle_context_score(
+            action=action,
+            extended_candle=extended_candle,
+            last_candle_direction=last_candle_direction,
         )
 
         score = max(
@@ -336,3 +344,34 @@ class ScoreCalculator:
                 return 10
 
         return 0
+
+    def _calculate_candle_context_score(
+        self,
+        action: str,
+        extended_candle: bool,
+        last_candle_direction: str,
+    ) -> int:
+        """
+        Penalizza gli ingressi tardivi dopo una candela
+        eccessivamente estesa nella stessa direzione del trade.
+        """
+
+        if action == "Attendere":
+            return 0
+
+        if not extended_candle:
+            return 0
+
+        if (
+            action == "Possibile acquisto"
+            and last_candle_direction == "Rialzista"
+        ):
+            return -20
+
+        if (
+            action == "Possibile vendita"
+            and last_candle_direction == "Ribassista"
+        ):
+            return -20
+
+        return -5

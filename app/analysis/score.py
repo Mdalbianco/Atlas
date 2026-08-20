@@ -17,6 +17,8 @@ class ScoreCalculator:
         extended_candle: bool = False,
         last_candle_direction: str = "Neutrale",
         volume_status: str = "Normale",
+        price_action_pattern: str = "Nessuno",
+        price_action_signal: str = "Neutrale",
     ) -> int:
         score = 50
 
@@ -82,6 +84,12 @@ class ScoreCalculator:
         score += self._calculate_volume_score(
             action=action,
             volume_status=volume_status,
+        )
+
+        score += self._calculate_price_action_score(
+            action=action,
+            price_action_pattern=price_action_pattern,
+            price_action_signal=price_action_signal,
         )
 
         score = max(
@@ -400,5 +408,41 @@ class ScoreCalculator:
 
         if volume_status == "Basso":
             return -15
+
+        return 0
+
+    def _calculate_price_action_score(
+        self,
+        action: str,
+        price_action_pattern: str,
+        price_action_signal: str,
+    ) -> int:
+        """
+        Premia i pattern di price action coerenti con il trade
+        e penalizza quelli contrari.
+        """
+
+        if action == "Attendere":
+            return 0
+
+        if price_action_pattern == "Nessuno":
+            return 0
+
+        if price_action_pattern == "Doji":
+            return -5
+
+        if action == "Possibile acquisto":
+            if price_action_signal == "Rialzista":
+                return 10
+
+            if price_action_signal == "Ribassista":
+                return -15
+
+        if action == "Possibile vendita":
+            if price_action_signal == "Ribassista":
+                return 10
+
+            if price_action_signal == "Rialzista":
+                return -15
 
         return 0

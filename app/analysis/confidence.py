@@ -17,6 +17,8 @@ class ConfidenceCalculator:
         extended_candle: bool = False,
         last_candle_direction: str = "Neutrale",
         volume_status: str = "Normale",
+        price_action_pattern: str = "Nessuno",
+        price_action_signal: str = "Neutrale",
     ) -> dict:
         confidence = float(score)
         factors = []
@@ -141,6 +143,21 @@ class ConfidenceCalculator:
         if volume_adjustment["factor"]:
             factors.append(
                 volume_adjustment["factor"]
+            )
+
+        price_action_adjustment = (
+            self._calculate_price_action_adjustment(
+                action=action,
+                price_action_pattern=price_action_pattern,
+                price_action_signal=price_action_signal,
+            )
+        )
+
+        confidence += price_action_adjustment["value"]
+
+        if price_action_adjustment["factor"]:
+            factors.append(
+               price_action_adjustment["factor"]
             )
 
         return {
@@ -434,6 +451,66 @@ class ConfidenceCalculator:
         return {
             "value": 0,
             "factor": "Volume nella norma",
+        }
+
+    def _calculate_price_action_adjustment(
+        self,
+        action: str,
+        price_action_pattern: str,
+        price_action_signal: str,
+    ) -> dict:
+        """
+        Modifica la confidence in base alla coerenza
+        della Price Action con la direzione operativa.
+        """
+
+        if action == "Attendere":
+            return {
+                "value": 0,
+                "factor": "",
+            }
+
+        if price_action_pattern == "Nessuno":
+            return {
+                "value": 0,
+                "factor": "",
+            }
+
+        if price_action_pattern == "Doji":
+            return {
+                "value": -5,
+                "factor": "Doji: indecisione nella Price Action",
+            }
+
+        if action == "Possibile acquisto":
+            if price_action_signal == "Rialzista":
+                return {
+                    "value": 10,
+                    "factor": "Price Action favorevole al Long",
+                }
+
+            if price_action_signal == "Ribassista":
+                return {
+                    "value": -15,
+                    "factor": "Price Action contraria al Long",
+                }
+
+        if action == "Possibile vendita":
+            if price_action_signal == "Ribassista":
+                return {
+                    "value": 10,
+                    "factor": "Price Action favorevole allo Short",
+                }
+
+            if price_action_signal == "Rialzista":
+                return {
+                    "value": -15,
+                    "factor": "Price Action contraria allo Short",
+                }
+
+        return {
+            "value": 0,
+            "factor": "",
         }
 
     def classify(self, confidence: int) -> str:

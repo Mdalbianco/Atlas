@@ -12,6 +12,7 @@ from app.analysis.multi_timeframe import MultiTimeframeAnalyzer
 from app.analysis.support_resistance import SupportResistanceAnalyzer
 from app.analysis.candle_context import CandleContextAnalyzer
 from app.analysis.volume import VolumeAnalyzer
+from app.analysis.price_action import PriceActionAnalyzer
 
 
 class AnalysisManager:
@@ -30,6 +31,7 @@ class AnalysisManager:
         self.support_resistance_analyzer = SupportResistanceAnalyzer()
         self.candle_context_analyzer = CandleContextAnalyzer()
         self.volume_analyzer = VolumeAnalyzer()
+        self.price_action_analyzer = PriceActionAnalyzer()
 
     def analyze(self, symbol: str) -> dict:
         """Esegue l'analisi completa della crypto richiesta."""
@@ -77,6 +79,10 @@ class AnalysisManager:
         )
 
         volume_result = self.volume_analyzer.analyze(
+            dataframe=dataframe,
+        )
+
+        price_action_result = self.price_action_analyzer.analyze(
             dataframe=dataframe,
         )
 
@@ -128,6 +134,12 @@ class AnalysisManager:
                "last_candle_direction"
             ],
             volume_status=volume_result["volume_status"],
+            price_action_pattern=price_action_result[
+                "price_action_pattern"
+            ],
+            price_action_signal=price_action_result[
+                "price_action_signal"
+            ],
             )
 
         score_classification = self.score_calculator.classify(
@@ -160,7 +172,13 @@ class AnalysisManager:
                 "last_candle_direction"
             ],
             volume_status=volume_result["volume_status"],
-        )
+            price_action_pattern=price_action_result[
+                "price_action_pattern"
+            ],
+            price_action_signal=price_action_result[
+                "price_action_signal"
+            ],
+            )
         
         risk_manager = RiskManager()
         trade_result = risk_manager.calculate_trade_levels(
@@ -176,6 +194,7 @@ class AnalysisManager:
          **support_resistance,
          **candle_context,
          **volume_result,
+         **price_action_result,
          **trend_result,
          "rsi": rsi_value,
          "rsi_signal": rsi_signal,

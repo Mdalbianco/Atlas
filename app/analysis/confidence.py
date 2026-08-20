@@ -16,6 +16,7 @@ class ConfidenceCalculator:
         near_resistance: bool = False,
         extended_candle: bool = False,
         last_candle_direction: str = "Neutrale",
+        volume_status: str = "Normale",
     ) -> dict:
         confidence = float(score)
         factors = []
@@ -129,6 +130,18 @@ class ConfidenceCalculator:
             0,
             min(round(confidence), 100),
         )
+
+        volume_adjustment = self._calculate_volume_adjustment(
+            action=action,
+            volume_status=volume_status,
+        )
+
+        confidence += volume_adjustment["value"]
+
+        if volume_adjustment["factor"]:
+            factors.append(
+                volume_adjustment["factor"]
+            )
 
         return {
             "confidence": confidence,
@@ -389,6 +402,38 @@ class ConfidenceCalculator:
             "factor": (
                 "Ultima candela estesa in direzione opposta"
             ),
+        }
+
+    def _calculate_volume_adjustment(
+        self,
+        action: str,
+        volume_status: str,
+    ) -> dict:
+        """
+        Modifica la confidence in base alla conferma fornita dal volume.
+        """
+
+        if action == "Attendere":
+            return {
+                "value": 0,
+                "factor": "",
+            }
+
+        if volume_status == "Alto":
+            return {
+                "value": 10,
+                "factor": "Volume alto a conferma del segnale",
+            }
+
+        if volume_status == "Basso":
+            return {
+                "value": -15,
+                "factor": "Volume basso: segnale poco confermato",
+            }
+
+        return {
+            "value": 0,
+            "factor": "Volume nella norma",
         }
 
     def classify(self, confidence: int) -> str:

@@ -159,6 +159,7 @@ class AnalysisManager:
             last_candle_direction=candle_context[
                 "last_candle_direction"
             ],
+            volume_status=volume_result["volume_status"],
         )
         
         risk_manager = RiskManager()

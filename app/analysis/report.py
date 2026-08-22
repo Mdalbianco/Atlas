@@ -117,6 +117,16 @@ class AnalysisReport:
         if not timeframe_factors_text:
             timeframe_factors_text = "• Nessun fattore disponibile"
 
+        price_action_pattern = result.get(
+            "price_action_pattern",
+            "Nessuno",
+        )
+
+        price_action_signal = result.get(
+            "price_action_signal",
+            "Neutrale",
+        )
+        
         report = (
             "📊 ATLAS ANALYSIS\n\n"
             f"🪙 Coppia: {result['symbol']}\n\n"
@@ -130,6 +140,8 @@ class AnalysisReport:
             f"🌡️ ATR: {result['atr']:.4f}\n"
             f"🌪️ Volatilità: {result['volatility']} "
             f"({result['atr_percentage']:.2f}%)\n\n"
+            f"🕯 Price Action: {price_action_pattern}\n"
+            f"📍 Segnale Price Action: {price_action_signal}\n\n"
             f"🌍 Regime di mercato: {market_regime}\n"
             f"🕐 Trend 1H: {lower_timeframe_trend}\n"
             f"🕓 Trend 4H: {higher_timeframe_trend}\n"

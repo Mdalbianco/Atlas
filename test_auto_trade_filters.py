@@ -58,6 +58,39 @@ def test_rejects_unaligned_timeframes() -> None:
     assert "1H Rialzista" in result["reason"]
     assert "4H Ribassista" in result["reason"]
 
+def test_rejects_extended_candle() -> None:
+    service = build_service()
+
+    fake_analysis = {
+        "score": 80,
+        "score_acceptable": True,
+        "score_classification": "Ottimo",
+        "confidence": 85,
+        "trade_available": True,
+        "timeframe_aligned": True,
+        "lower_timeframe_trend": "Rialzista",
+        "higher_timeframe_trend": "Rialzista",
+        "market_regime": "Trend rialzista",
+        "extended_candle": True,
+    }
+
+    with (
+        patch.object(
+            service.analysis_manager,
+            "analyze",
+            return_value=fake_analysis,
+        ),
+        patch.object(
+            service.paper_trading_service,
+            "open_trade",
+        ) as mock_open_trade,
+    ):
+        result = service.analyze_and_open("BTC")
+
+    assert result["trade_opened"] is False
+    assert result["status"] == "extended_candle"
+    assert "candela troppo estesa" in result["reason"]
+    mock_open_trade.assert_not_called()
 
 def test_opens_valid_trade() -> None:
     service = build_service()
@@ -133,6 +166,7 @@ def test_opens_valid_trade() -> None:
 if __name__ == "__main__":
     test_rejects_low_confidence()
     test_rejects_unaligned_timeframes()
+    test_rejects_extended_candle()
     test_opens_valid_trade()
 
     print("✅ Tutti i test dei filtri auto-trade sono passati.")

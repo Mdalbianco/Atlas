@@ -79,6 +79,17 @@ class AutoTradeService:
                 "analysis": analysis,
             }
 
+        if analysis.get("extended_candle", False):
+            return {
+                "trade_opened": False,
+                "status": "extended_candle",
+                "reason": (
+                    "Ingresso evitato: ultima candela troppo estesa "
+                    "rispetto alla volatilità recente."
+                ),
+                "analysis": analysis,
+            }
+
         if not analysis.get("trade_available", False):
             return {
                 "trade_opened": False,

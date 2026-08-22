@@ -86,10 +86,11 @@ class PaperTradingService:
     ]
     
     def close_trade(
-           self,
-         trade_id: str,
-         exit_price: float,
-         result: str,
+        self,
+        trade_id: str,
+        exit_price: float,
+        result: str,
+        close_reason: str = "unknown",
     ) -> dict | None:
         """Chiude un trade aperto."""
         
@@ -103,6 +104,7 @@ class PaperTradingService:
                trade["status"] = "closed"
                trade["exit_price"] = exit_price
                trade["result"] = result
+               trade["close_reason"] = close_reason
                trade["closed_at"] = datetime.now(
                  timezone.utc
                 ).isoformat()
@@ -198,45 +200,77 @@ class PaperTradingService:
         return trade
     
     def check_trade_exit(
-     self,
-     trade: dict,
-     current_price: float,
+        self,
+        trade: dict,
+        current_price: float,
     ) -> dict | None:
-       """Controlla se il trade deve essere chiuso."""
-       
-       direction = trade["direction"]
-       
-       if direction == "Long":
+        """Controlla se il trade deve essere chiuso."""
 
-        if current_price <= trade["stop_loss"]:
-           return self.close_trade(
-                trade_id=trade["id"],
-                exit_price=current_price,
-                result="loss",
-            )
+        direction = trade["direction"]
+        entry_price = float(trade["entry_price"])
+        stop_loss = float(trade["stop_loss"])
+        take_profit = float(trade["take_profit"])
 
-        if current_price >= trade["take_profit"]:
-            return self.close_trade(
-                trade_id=trade["id"],
-                exit_price=current_price,
-                result="win",
-            )
-        
+        if direction == "Long":
+
+            if current_price <= stop_loss:
+                result = (
+                    "win"
+                    if current_price > entry_price
+                    else "loss"
+                )
+
+                close_reason = (
+                    "trailing_stop"
+                    if trade.get("trailing_stop_active", False)
+                    else "stop_loss"
+                )
+
+                return self.close_trade(
+                    trade_id=trade["id"],
+                    exit_price=current_price,
+                    result=result,
+                    close_reason=close_reason,
+                )
+
+            if current_price >= take_profit:
+                return self.close_trade(
+                    trade_id=trade["id"],
+                    exit_price=current_price,
+                    result="win",
+                    close_reason="take_profit",
+                )
+
         elif direction == "Short":
-            
-            if current_price >= trade["stop_loss"]:
-               return self.close_trade(
-                 trade_id=trade["id"],
-                 exit_price=current_price,
-                 result="loss",
+
+            if current_price >= stop_loss:
+                result = (
+                    "win"
+                    if current_price < entry_price
+                    else "loss"
                 )
-            
-            if current_price <= trade["take_profit"]:
-               return self.close_trade(
-                  trade_id=trade["id"],
-                  exit_price=current_price,
-                 result="win",
+
+                close_reason = (
+                    "trailing_stop"
+                    if trade.get("trailing_stop_active", False)
+                    else "stop_loss"
                 )
+
+                return self.close_trade(
+                    trade_id=trade["id"],
+                    exit_price=current_price,
+                    result=result,
+                    close_reason=close_reason,
+                )
+
+            if current_price <= take_profit:
+                return self.close_trade(
+                    trade_id=trade["id"],
+                    exit_price=current_price,
+                    result="win",
+                    close_reason="take_profit",
+                )
+
         return None
        
     def check_open_trades(self, price_provider) -> list[dict]:

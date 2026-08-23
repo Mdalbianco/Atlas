@@ -60,6 +60,29 @@ class RiskManager:
             "risk_reward_ratio": risk_reward_ratio,
         }
 
+    def calculate_dynamic_risk_percentage(
+        self,
+        score: float,
+        confidence: float,
+    ) -> float:
+        """
+        Calcola la percentuale di rischio in base
+        alla qualità complessiva del setup.
+        """
+
+        quality = (float(score) + float(confidence)) / 2
+
+        if quality >= 90:
+            return 2.0
+
+        if quality >= 80:
+            return 1.5
+
+        if quality >= 70:
+            return 1.0
+
+        return 0.5
+
     def calculate_position_size(
        self,
        account_balance: float,

@@ -153,11 +153,16 @@ class AutoTradeService:
            * self.max_committed_percentage
         ) / 100
 
+        risk_percentage = self.risk_manager.calculate_dynamic_risk_percentage(
+            score=analysis.get("score", 0),
+            confidence=analysis.get("confidence", 0),
+        )
+
         position_size = self.risk_manager.calculate_position_size(
-         account_balance=account_balance,
-         entry_price=analysis["entry_price"],
-         stop_loss=analysis["stop_loss"],
-         risk_percentage=2.0,
+            account_balance=account_balance,
+            entry_price=analysis["entry_price"],
+            stop_loss=analysis["stop_loss"],
+            risk_percentage=risk_percentage,
         )
 
         remaining_committed_capital = (

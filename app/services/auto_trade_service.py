@@ -90,6 +90,36 @@ class AutoTradeService:
                 "analysis": analysis,
             }
 
+        trade_direction = analysis.get("trade_direction")
+
+        if (
+            trade_direction == "Long"
+            and analysis.get("near_resistance", False)
+        ):
+            return {
+                "trade_opened": False,
+                "status": "near_resistance",
+                "reason": (
+                    "Ingresso Long evitato: prezzo troppo vicino "
+                    "a una resistenza."
+                ),
+                "analysis": analysis,
+            }
+
+        if (
+            trade_direction == "Short"
+            and analysis.get("near_support", False)
+        ):
+            return {
+                "trade_opened": False,
+                "status": "near_support",
+                "reason": (
+                    "Ingresso Short evitato: prezzo troppo vicino "
+                    "a un supporto."
+                ),
+                "analysis": analysis,
+            }
+
         if not analysis.get("trade_available", False):
             return {
                 "trade_opened": False,

@@ -92,6 +92,80 @@ def test_rejects_extended_candle() -> None:
     assert "candela troppo estesa" in result["reason"]
     mock_open_trade.assert_not_called()
 
+def test_rejects_long_near_resistance() -> None:
+    service = build_service()
+
+    fake_analysis = {
+        "score": 80,
+        "score_acceptable": True,
+        "score_classification": "Ottimo",
+        "confidence": 85,
+        "trade_available": True,
+        "timeframe_aligned": True,
+        "lower_timeframe_trend": "Rialzista",
+        "higher_timeframe_trend": "Rialzista",
+        "market_regime": "Trend rialzista",
+        "extended_candle": False,
+        "trade_direction": "Long",
+        "near_resistance": True,
+        "near_support": False,
+    }
+
+    with (
+        patch.object(
+            service.analysis_manager,
+            "analyze",
+            return_value=fake_analysis,
+        ),
+        patch.object(
+            service.paper_trading_service,
+            "open_trade",
+        ) as mock_open_trade,
+    ):
+        result = service.analyze_and_open("BTC")
+
+    assert result["trade_opened"] is False
+    assert result["status"] == "near_resistance"
+    assert "resistenza" in result["reason"]
+    mock_open_trade.assert_not_called()
+
+def test_rejects_short_near_support() -> None:
+    service = build_service()
+
+    fake_analysis = {
+        "score": 80,
+        "score_acceptable": True,
+        "score_classification": "Ottimo",
+        "confidence": 85,
+        "trade_available": True,
+        "timeframe_aligned": True,
+        "lower_timeframe_trend": "Ribassista",
+        "higher_timeframe_trend": "Ribassista",
+        "market_regime": "Trend ribassista",
+        "extended_candle": False,
+        "trade_direction": "Short",
+        "near_resistance": False,
+        "near_support": True,
+    }
+
+    with (
+        patch.object(
+            service.analysis_manager,
+            "analyze",
+            return_value=fake_analysis,
+        ),
+        patch.object(
+            service.paper_trading_service,
+            "open_trade",
+        ) as mock_open_trade,
+    ):
+        result = service.analyze_and_open("BTC")
+
+    assert result["trade_opened"] is False
+    assert result["status"] == "near_support"
+    assert "supporto" in result["reason"]
+    mock_open_trade.assert_not_called()
+
 def test_opens_valid_trade() -> None:
     service = build_service()
 
@@ -167,6 +241,8 @@ if __name__ == "__main__":
     test_rejects_low_confidence()
     test_rejects_unaligned_timeframes()
     test_rejects_extended_candle()
+    test_rejects_long_near_resistance()
+    test_rejects_short_near_support()
     test_opens_valid_trade()
 
     print("✅ Tutti i test dei filtri auto-trade sono passati.")

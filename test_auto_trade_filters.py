@@ -305,6 +305,93 @@ def test_opens_valid_trade() -> None:
     assert result["trade"]["position_size"] == 20.0
     assert result["trade"]["status"] == "open"
 
+def test_caps_new_trade_to_remaining_committed_capital() -> None:
+    service = build_service()
+
+    fake_analysis = {
+        "score": 90,
+        "score_acceptable": True,
+        "score_classification": "Ottimo",
+        "confidence": 90,
+        "trade_available": True,
+        "timeframe_aligned": True,
+        "lower_timeframe_trend": "Rialzista",
+        "higher_timeframe_trend": "Rialzista",
+        "market_regime": "Trend rialzista",
+        "extended_candle": False,
+        "trade_direction": "Long",
+        "near_resistance": False,
+        "near_support": False,
+        "entry_price": 100.0,
+        "stop_loss": 98.0,
+        "take_profit": 104.0,
+        "risk_reward_ratio": 2.0,
+    }
+
+    existing_trade = {
+        "id": "existing-trade",
+        "symbol": "ETH",
+        "direction": "Long",
+        "entry_price": 100.0,
+        "stop_loss": 98.0,
+        "take_profit": 104.0,
+        "position_size": 50.0,
+        "status": "open",
+    }
+
+    fake_new_trade = {
+        "id": "new-trade",
+        "symbol": "BTC",
+        "direction": "Long",
+        "entry_price": 100.0,
+        "stop_loss": 98.0,
+        "take_profit": 104.0,
+        "position_size": 20.0,
+        "status": "open",
+    }
+
+    with (
+        patch.object(
+            service.analysis_manager,
+            "analyze",
+            return_value=fake_analysis,
+        ),
+        patch.object(
+            service.paper_trading_service,
+            "get_open_trades",
+            return_value=[existing_trade],
+        ),
+        patch.object(
+            service.wallet_service,
+            "get_balance",
+            return_value=100.0,
+        ),
+        patch.object(
+            service.risk_manager,
+            "calculate_position_size",
+            return_value=80.0,
+        ),
+        patch.object(
+            service.paper_trading_service,
+            "open_trade",
+            return_value=fake_new_trade,
+        ) as mock_open_trade,
+        patch.object(
+            service.notification_service,
+            "send_sync",
+            return_value=None,
+        ),
+    ):
+        result = service.analyze_and_open("BTC")
+
+    assert result["trade_opened"] is True
+
+    mock_open_trade.assert_called_once()
+
+    call_kwargs = mock_open_trade.call_args.kwargs
+
+    assert call_kwargs["position_size"] == 20.0
+
 
 if __name__ == "__main__":
     test_rejects_low_confidence()

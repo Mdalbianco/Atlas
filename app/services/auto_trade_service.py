@@ -3,6 +3,7 @@ from app.analysis.analysis_manager import AnalysisManager
 from app.services.paper_trading_service import PaperTradingService
 from app.risk.risk_manager import RiskManager
 from app.services.wallet_service import WalletService
+from app.risk.circuit_breaker import CircuitBreaker
 
 class AutoTradeService:
     """Analizza il mercato e apre automaticamente trade simulati validi."""
@@ -17,6 +18,7 @@ class AutoTradeService:
        self.paper_trading_service = PaperTradingService()
        self.notification_service = NotificationService()
        self.risk_manager = RiskManager()
+       self.circuit_breaker = CircuitBreaker()
        self.wallet_service = WalletService()
        self.max_open_trades = max_open_trades
        self.max_committed_percentage = max_committed_percentage
@@ -27,6 +29,53 @@ class AutoTradeService:
         Analizza una crypto e apre un trade simulato
         solo quando è disponibile un piano operativo.
         """
+
+        trades = self.paper_trading_service._load_trades()
+
+        wallet = self.wallet_service.get_wallet()
+
+        current_balance = float(
+            wallet.get("current_balance", 0.0)
+        )
+
+        initial_balance = float(
+            wallet.get("initial_balance", current_balance)
+        )
+
+        recorded_balances = [
+            float(trade["wallet_balance"])
+            for trade in trades
+            if isinstance(
+                trade.get("wallet_balance"),
+                (int, float),
+            )
+        ]
+
+        peak_balance = max(
+            [
+                initial_balance,
+                current_balance,
+                *recorded_balances,
+            ]
+        )
+
+        circuit_breaker_result = self.circuit_breaker.evaluate(
+            trades=trades,
+            current_balance=current_balance,
+            peak_balance=peak_balance,
+        )
+
+        if not circuit_breaker_result["allowed"]:
+            return {
+                "trade_opened": False,
+                "status": "circuit_breaker_active",
+                "reason": (
+                    "Circuit Breaker attivo: "
+                    f"{circuit_breaker_result['reason']} "
+                    f"({circuit_breaker_result['value']})"
+                ),
+                "circuit_breaker": circuit_breaker_result,
+            }
 
         analysis = self.analysis_manager.analyze(symbol)
 

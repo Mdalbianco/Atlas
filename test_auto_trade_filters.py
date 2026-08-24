@@ -4,11 +4,19 @@ from app.services.auto_trade_service import AutoTradeService
 
 
 def build_service() -> AutoTradeService:
-    return AutoTradeService(
+    service = AutoTradeService(
         max_open_trades=2,
         max_committed_percentage=70.0,
         min_position_size=10.0,
     )
+
+    service.circuit_breaker.evaluate = lambda **kwargs: {
+        "allowed": True,
+        "reason": None,
+        "value": None,
+    }
+
+    return service
 
 
 def test_rejects_low_confidence() -> None:
@@ -164,6 +172,67 @@ def test_rejects_short_near_support() -> None:
     assert result["trade_opened"] is False
     assert result["status"] == "near_support"
     assert "supporto" in result["reason"]
+    mock_open_trade.assert_not_called()
+
+def test_rejects_trade_when_circuit_breaker_blocks() -> None:
+    service = build_service()
+
+    fake_analysis = {
+        "score": 80,
+        "score_acceptable": True,
+        "score_classification": "Ottimo",
+        "confidence": 85,
+        "trade_available": True,
+        "timeframe_aligned": True,
+        "lower_timeframe_trend": "Rialzista",
+        "higher_timeframe_trend": "Rialzista",
+        "market_regime": "Trend rialzista",
+        "extended_candle": False,
+        "trade_direction": "Long",
+        "near_resistance": False,
+        "near_support": False,
+        "entry_price": 100.0,
+        "stop_loss": 98.0,
+        "take_profit": 104.0,
+        "risk_reward_ratio": 2.0,
+    }
+
+    with (
+        patch.object(
+            service.analysis_manager,
+            "analyze",
+            return_value=fake_analysis,
+        ),
+        patch.object(
+            service.paper_trading_service,
+            "get_open_trades",
+            return_value=[],
+        ),
+        patch.object(
+            service.wallet_service,
+            "get_balance",
+            return_value=89.0,
+        ),
+        patch.object(
+            service.circuit_breaker,
+            "evaluate",
+            return_value={
+                "allowed": False,
+                "reason": "max_drawdown",
+                "value": 11.0,
+            },
+        ),
+        patch.object(
+            service.paper_trading_service,
+            "open_trade",
+        ) as mock_open_trade,
+    ):
+        result = service.analyze_and_open("BTC")
+
+    assert result["trade_opened"] is False
+    assert result["status"] == "circuit_breaker_active"
+    assert result["circuit_breaker"]["reason"] == "max_drawdown"
+    assert result["circuit_breaker"]["value"] == 11.0
     mock_open_trade.assert_not_called()
 
 def test_opens_valid_trade() -> None:

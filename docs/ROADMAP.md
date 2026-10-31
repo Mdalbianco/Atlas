@@ -15,8 +15,8 @@
 
 | Criterio | Stato | Verifica |
 |---|---|---|
-| Bot Telegram funzionante | 🟡 | logica e integrazione con python-telegram-bot testate offline; manca la prova con un token reale |
-| Connessione Kraken in sola lettura | 🟡 | implementata e protetta; **non provata dal vivo** (rete bloccata nell'ambiente di sviluppo) |
+| Bot Telegram funzionante | 🟡 | API Telegram raggiungibile; logica testata offline; manca la prova con un token reale |
+| Connessione Kraken in sola lettura | ✅ | verificata dal vivo (31/10/2026): 720 candele 1h/4h per BTC/ETH/SOL, ticker, regole di mercato, ciclo paper completo |
 | Dati raccolti e validati | ✅ | test su candela in formazione, dati incoerenti, buchi, dati vecchi |
 | Analisi tecnica verificabile | ✅ | test numerici (RSI di Wilder, ATR, ADX…) e test anti look-ahead |
 | Scoring implementato | ✅ | |

@@ -120,13 +120,19 @@ class KrakenDataSource:
         import ccxt  # import locale: i test offline non richiedono ccxt
 
         self._ccxt = ccxt
-        config: dict[str, Any] = {"enableRateLimit": True, "timeout": timeout_ms}
+        # trust_env: CCXT ignora di default HTTPS_PROXY/REQUESTS_CA_BUNDLE; li rispettiamo
+        # per funzionare anche dietro un proxy aziendale o cloud (nessun effetto se assenti).
+        config: dict[str, Any] = {"enableRateLimit": True, "timeout": timeout_ms, "trust_env": True}
         if api_key and api_secret:
             register_secret(api_key)
             register_secret(api_secret)
             config.update({"apiKey": api_key, "secret": api_secret})
         self.has_credentials = bool(api_key and api_secret)
-        self._exchange = ReadOnlyExchange(ccxt.kraken(config))
+        raw = ccxt.kraken(config)
+        session = getattr(raw, "session", None)
+        if session is not None:
+            session.trust_env = True   # proxy e CA bundle dalle variabili d'ambiente
+        self._exchange = ReadOnlyExchange(raw)
         self._max_retries = max_retries
         self._sleep = sleep
         self._markets_loaded_at = 0.0

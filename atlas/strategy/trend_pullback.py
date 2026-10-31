@@ -33,7 +33,7 @@ class TrendPullback(Strategy):
         if p.trend != "rialzista":
             no.append(f"trend {p.trend} sul {p.timeframe}: la strategia opera solo in trend rialzista")
         if p.adx < prm["min_adx"]:
-            no.append(f"forza del trend insufficiente (ADX {p.adx:.0f} < {prm['min_adx']:.0f})")
+            no.append(f"forza del trend insufficiente (ADX {p.adx:.1f} < {prm['min_adx']:.1f})")
         if prm["require_higher_trend"] and (ctx.higher is None or ctx.higher.trend == "ribassista"):
             no.append("timeframe superiore non compatibile (ribassista o non disponibile)")
         if not p.structure.pullback_to_ema:

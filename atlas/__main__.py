@@ -143,7 +143,7 @@ def cmd_backtest(args) -> int:
         spread_pct=s.default_spread_pct,
         costs=CostModel(s.taker_fee_pct, s.slippage_pct, s.default_spread_pct),
         limits=RiskLimits.from_settings(s),
-        management=ManagementParams(s.trailing_activation_r, s.trailing_atr_multiple, s.time_stop_bars),
+        management=ManagementParams(s.trailing_activation_r, s.trailing_atr_multiple, s.time_stop_bars, breakeven_cost_pct=2 * CostModel(s.taker_fee_pct, s.slippage_pct, s.default_spread_pct).per_side_pct),
         market_symbol=s.market_reference if s.market_reference in data else None,
     )
     if args.walk_forward:
@@ -163,7 +163,7 @@ def cmd_backtest(args) -> int:
             print(format_report(out[k]))
         print("\nAvvertenze:\n" + "\n".join(f"- {w}" for w in out["warnings"]))
     else:
-        res = Backtester(build_strategies(strategies), cfg).run(data)
+        res = Backtester(build_strategies(strategies, costs=cfg.costs), cfg).run(data)
         out = full_report(res)
         print(format_report(out))
     if args.json:

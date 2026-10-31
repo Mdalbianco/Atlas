@@ -8,6 +8,7 @@ registro né il codice delle strategie.
 
 from __future__ import annotations
 
+from atlas.risk.costs import CostModel
 from atlas.strategy.base import Strategy
 from atlas.strategy.breakout import VolumeBreakout
 from atlas.strategy.trend_pullback import TrendPullback
@@ -18,13 +19,13 @@ STRATEGIES: dict[str, type[Strategy]] = {
 }
 
 
-def build_strategies(names: tuple[str, ...] | list[str], overrides: dict[str, dict] | None = None) -> list[Strategy]:
+def build_strategies(names: tuple[str, ...] | list[str], overrides: dict[str, dict] | None = None, costs: CostModel | None = None) -> list[Strategy]:
     overrides = overrides or {}
     out = []
     for name in names:
         if name not in STRATEGIES:
             raise ValueError(f"Strategia sconosciuta: {name}. Disponibili: {', '.join(STRATEGIES)}")
-        out.append(STRATEGIES[name](**overrides.get(name, {})))
+        out.append(STRATEGIES[name](costs=costs, **overrides.get(name, {})))
     return out
 
 

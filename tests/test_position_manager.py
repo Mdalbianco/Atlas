@@ -46,3 +46,9 @@ def test_time_stop_and_invalidation():
     assert ex.reason is ExitReason.TIME_STOP
     upd, ex = on_bar_close(pos(), snap(close=99.0, ema50=99.5, trend="laterale"), 100.0, TrendPullback(), ManagementParams())
     assert ex.reason is ExitReason.INVALIDATION
+
+
+def test_breakeven_floor_is_net_of_costs():
+    # dopo +1R con ATR ampio il pavimento è il pareggio NETTO (ingresso + costi A/R)
+    upd, _ = on_bar_close(pos(), snap(close=104.5, atr=5.0), 104.5, None, ManagementParams(1.0, 2.5, 48, breakeven_cost_pct=1.0))
+    assert upd["stop_loss"] == 101.0

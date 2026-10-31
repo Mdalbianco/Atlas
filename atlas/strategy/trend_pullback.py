@@ -48,7 +48,7 @@ class TrendPullback(Strategy):
         recent_low = min(p.structure.swing_lows[-1] if p.structure.swing_lows else p.close, p.close - prm["stop_atr"] * p.atr)
         stop = max(recent_low - 0.2 * p.atr, p.close - 3 * p.atr)  # mai oltre 3 ATR
         stop = min(stop, p.close - 1.0 * p.atr)                       # mai sotto 1 ATR di distanza
-        target = p.close + prm["target_r"] * (p.close - stop)
+        target = self.net_target(ctx, stop, prm["target_r"])  # R netti di costi
         target, note = self.cap_target_at_resistance(p, target)
         reasons = [
             f"trend rialzista sul {p.timeframe} (ADX {p.adx:.0f})",

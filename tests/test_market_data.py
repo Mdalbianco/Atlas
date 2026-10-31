@@ -83,3 +83,15 @@ def test_market_data_service_with_replay():
     assert rep.dropped_incomplete and int(df.timestamp.iloc[-1]) == t - H
     tk = svc.ticker("BTC/EUR")
     assert tk["spread_pct"] == pytest.approx(0.06, rel=1e-3)
+
+
+def test_replay_never_reveals_future_prices():
+    m = SyntheticMarket(bars=300, seed=2)
+    df = m.data["BTC/EUR"]
+    t = int(df.timestamp.iloc[200])
+    m.now_ms = t
+    rows = m.fetch_ohlcv("BTC/EUR", "1h", 500)
+    assert rows[-1][0] == t
+    assert rows[-1][1] == rows[-1][2] == rows[-1][3] == rows[-1][4] == df.open.iloc[200]
+    assert m.fetch_ticker("BTC/EUR")["last"] == df.open.iloc[200]
+    assert rows[-2][4] == df.close.iloc[199]

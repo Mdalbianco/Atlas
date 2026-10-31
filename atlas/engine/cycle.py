@@ -68,11 +68,11 @@ class TradingCycle:
         self.costs = CostModel(settings.taker_fee_pct, settings.slippage_pct, settings.default_spread_pct)
         self.limits = RiskLimits.from_settings(settings)
         self.risk = RiskManager(self.limits, self.costs)
-        self.strategies = {st.name: st for st in build_strategies(settings.strategies)}
+        self.strategies = {st.name: st for st in build_strategies(settings.strategies, costs=self.costs)}
         self.engine = DecisionEngine(list(self.strategies.values()), ScoreEngine(self.costs, settings.min_reward_risk), self.risk, settings.min_score)
         self.account = PaperAccount(db, PaperBroker(self.costs), settings.initial_capital, clock=self.clock)
         self.lock = threading.RLock()  # un solo ciclo / chiusura manuale alla volta
-        self.mgmt = ManagementParams(settings.trailing_activation_r, settings.trailing_atr_multiple, settings.time_stop_bars)
+        self.mgmt = ManagementParams(settings.trailing_activation_r, settings.trailing_atr_multiple, settings.time_stop_bars, breakeven_cost_pct=2 * self.costs.per_side_pct)
         if not db.watchlist() and db.get_state("watchlist_seeded") is None:
             for sym in settings.watchlist:
                 db.add_watch(sym)

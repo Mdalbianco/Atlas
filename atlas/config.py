@@ -100,7 +100,7 @@ class Settings:
     # --- Analisi ------------------------------------------------------------
     timeframe: str = "1h"
     higher_timeframe: str = "4h"
-    candles_limit: int = 300
+    candles_limit: int = 720   # massimo Kraken: serve per la convergenza dell'EMA200
     market_reference: str = "BTC/EUR"
 
     # --- Decisione / scoring ----------------------------------------------
@@ -192,8 +192,11 @@ class Settings:
         for pct_name in ("taker_fee_pct", "maker_fee_pct", "slippage_pct", "default_spread_pct"):
             if not 0 <= getattr(self, pct_name) < 5:
                 errors.append(f"{pct_name} fuori intervallo")
-        if self.candles_limit < 220:
-            errors.append("ATLAS_CANDLES_LIMIT deve essere >= 220 (EMA200 + margine)")
+        if not 600 <= self.candles_limit <= 720:
+            errors.append(
+                "ATLAS_CANDLES_LIMIT deve essere tra 600 e 720: con meno candele l'EMA200 non converge "
+                "e l'analisi live diverge dal backtest (720 è il massimo restituito da Kraken)"
+            )
         if self.cycle_interval_seconds < 30:
             errors.append("ATLAS_CYCLE_INTERVAL_SECONDS deve essere >= 30 (rate limit Kraken)")
         for symbol in self.watchlist:
@@ -234,7 +237,7 @@ def load_settings(env_file: str | None = ".env") -> Settings:
         min_order_cost=_float("ATLAS_MIN_ORDER_COST", 5.0),
         timeframe=_env("ATLAS_TIMEFRAME", "1h") or "1h",
         higher_timeframe=_env("ATLAS_HIGHER_TIMEFRAME", "4h") or "4h",
-        candles_limit=_int("ATLAS_CANDLES_LIMIT", 300),
+        candles_limit=_int("ATLAS_CANDLES_LIMIT", 720),
         market_reference=normalize_symbol(_env("ATLAS_MARKET_REFERENCE", "BTC/EUR") or "BTC", quote),
         min_score=_float("ATLAS_MIN_SCORE", 65.0),
         min_reward_risk=_float("ATLAS_MIN_REWARD_RISK", 1.8),

@@ -65,7 +65,7 @@ def _apply(params: dict, base: BacktestConfig, strategy_names) -> tuple[Backtest
             strat, p = key.split(".", 1)
             overrides.setdefault(strat, {})[p] = value
     names = list(strategy_names)
-    return cfg, build_strategies(names, {k: v for k, v in overrides.items() if k in names})
+    return cfg, build_strategies(names, {k: v for k, v in overrides.items() if k in names}, costs=cfg.costs)
 
 
 def objective(result: BacktestResult, min_trades: int) -> float:

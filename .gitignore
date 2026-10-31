@@ -14,9 +14,9 @@ venv/
 *.pem
 
 # Dati di runtime (database, log, storici scaricati, report)
-data/
-logs/
-reports/
+/data/
+/logs/
+/reports/
 *.db
 *.db-wal
 *.db-shm

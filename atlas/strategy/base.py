@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 
 from atlas.analysis.snapshot import MarketContext, Snapshot
 from atlas.domain import Signal
+from atlas.risk.costs import CostModel, target_for_net_r
 
 
 @dataclass
@@ -32,7 +33,8 @@ class Strategy(ABC):
     status: str = "sperimentale"   # sperimentale | in_validazione | validata | attiva | ritirata
     description: str = ""
 
-    def __init__(self, **params) -> None:
+    def __init__(self, costs: CostModel | None = None, **params) -> None:
+        self.costs = costs or CostModel()
         self.params = {**self.default_params(), **params}
 
     @classmethod
@@ -65,6 +67,10 @@ class Strategy(ABC):
             reasons=reasons,
             invalidation=invalidation,
         )
+
+    def net_target(self, ctx: MarketContext, stop: float, r: float) -> float:
+        """Target che rende ``r`` volte il rischio, entrambi AL NETTO dei costi stimati."""
+        return target_for_net_r(ctx.primary.close, stop, r, self.costs.with_spread(ctx.spread_pct))
 
     @staticmethod
     def cap_target_at_resistance(snap: Snapshot, target: float) -> tuple[float, str | None]:

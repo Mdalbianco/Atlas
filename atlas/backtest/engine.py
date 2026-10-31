@@ -254,14 +254,23 @@ class Backtester:
             # 4) nuove decisioni alla chiusura
             if not in_window:
                 continue
+            # le posizioni con uscita già decisa verranno chiuse alla prossima apertura,
+            # insieme ai nuovi ingressi: come nel ciclo live, liberano subito lo spazio.
+            exit_costs = cfg.costs.with_spread(cfg.spread_pct)
+            freed_cash = sum(
+                exit_costs.exit_price(last_close.get(s, pp["entry_price"])) * pp["quantity"] * (1 - cfg.costs.fee_pct / 100)
+                for s, pp in positions.items()
+                if s in pending_exits
+            )
             state = PortfolioState(
-                cash=cash,
+                cash=cash + freed_cash,
                 equity=equity,
                 peak_equity=peak,
                 day_start_equity=day_start,
                 positions=[
                     OpenPositionView(s, pp["quantity"], pp["entry_price"], last_close.get(s, pp["entry_price"]), pp["stop_loss"])
                     for s, pp in positions.items()
+                    if s not in pending_exits
                 ],
                 consecutive_losses=consecutive_losses,
                 last_loss_at=last_loss_at,
@@ -276,7 +285,7 @@ class Backtester:
                     hi = int(mp["h_idx"][mi])
                     market_snap = self._snapshot(hcache, None, cfg.market_symbol, cfg.higher_timeframe, mp["henr"], hi) if hi >= 0 else None
             for sym, p in prep.items():
-                if sym in positions or sym in pending_entries:
+                if sym in positions or sym in pending_entries or sym in pending_exits:
                     continue
                 i = p["pos"].get(ts)
                 if i is None:
@@ -288,7 +297,7 @@ class Backtester:
                     continue
                 ctx = MarketContext(sym, snap, hsnap, market=market_snap, spread_pct=cfg.spread_pct)
                 rules = cfg.rules.get(sym, MarketRules(sym, min_cost=0.5))
-                corr = self._correlations(prep, sym, list(positions), i, ts)
+                corr = self._correlations(prep, sym, [x for x in positions if x not in pending_exits], i, ts)
                 d = self.engine.decide_entry(ctx, state, rules, now, correlations=corr)
                 decisions[d.action.value] = decisions.get(d.action.value, 0) + 1
                 if d.action.value == "ENTER":

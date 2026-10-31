@@ -67,3 +67,13 @@ def test_pivots_require_confirmation():
 def test_array_frame_cannot_read_beyond_end():
     af = ArrayFrame({"close": np.arange(10.0)}, end=4)
     assert len(af["close"]) == 4 and af["close"][-1] == 3.0
+
+
+def test_ema200_needs_long_history_to_match_backtest(market):
+    """Motivo del default ATLAS_CANDLES_LIMIT=720: con 300 candele l'EMA200 non è convergente."""
+    df = market.data["BTC/EUR"].reset_index(drop=True)
+    full = add_indicators(df)["ema200"].iloc[-1]
+    short = add_indicators(df.tail(300))["ema200"].iloc[-1]
+    long = add_indicators(df.tail(720))["ema200"].iloc[-1]
+    assert abs(long - full) / full < abs(short - full) / full
+    assert abs(long - full) / full < 0.002

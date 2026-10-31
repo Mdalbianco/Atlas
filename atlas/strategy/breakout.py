@@ -53,7 +53,7 @@ class VolumeBreakout(Strategy):
         level = s.breakout_level or p.close
         stop = min(level - 0.5 * p.atr, p.close - prm["stop_atr"] * p.atr)
         stop = max(stop, p.close - 3 * p.atr)
-        target = p.close + prm["target_r"] * (p.close - stop)
+        target = self.net_target(ctx, stop, prm["target_r"])  # R netti di costi
         target, note = self.cap_target_at_resistance(p, target)
         reasons = [
             f"breakout sopra {level:.6g} dopo consolidamento ({s.range_atr:.1f} ATR)",

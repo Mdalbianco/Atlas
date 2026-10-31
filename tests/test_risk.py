@@ -119,3 +119,15 @@ def test_quantity_rounded_to_step():
     rules = MarketRules("BTC/EUR", amount_step=0.001, min_cost=0.5)
     d = rm().evaluate(sig(), state(), rules, NOW)
     assert abs(d.quantity / 0.001 - round(d.quantity / 0.001)) < 1e-6
+
+
+def test_target_for_net_r_is_inverse_of_net_rr():
+    from atlas.risk.costs import target_for_net_r
+
+    c = CostModel(0.4, 0.05, 0.1)
+    for stop in (99.0, 98.0, 96.0):
+        tgt = target_for_net_r(100.0, stop, 2.0, c)
+        assert net_reward_risk(100.0, stop, tgt, c)[0] == pytest.approx(2.0, rel=1e-9)
+    # stop più stretto → target più lontano in termini di R lordi
+    gross = lambda stop: (target_for_net_r(100, stop, 2.0, c) - 100) / (100 - stop)
+    assert gross(99.0) > gross(96.0) > 2.0

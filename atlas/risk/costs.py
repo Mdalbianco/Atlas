@@ -56,3 +56,18 @@ def net_reward_risk(entry: float, stop: float, target: float, costs: CostModel) 
     if risk <= 0:
         return 0.0, risk, reward
     return max(reward, 0.0) / risk, risk, reward
+
+
+def target_for_net_r(entry: float, stop: float, r: float, costs: CostModel) -> float:
+    """Prezzo target tale che il rendimento NETTO sia ``r`` volte il rischio NETTO.
+
+    È l'inversa di :func:`net_reward_risk`: con stop stretti i costi fissi pesano
+    di più, quindi il target si allontana (e il setup diventa più difficile).
+    """
+    fee = costs.fee_pct / 100
+    friction = (costs.spread_pct / 2 + costs.slippage_pct) / 100
+    buy_cost = entry * (1 + friction) * (1 + fee)
+    sell_stop = stop * (1 - friction) * (1 - fee)
+    risk = buy_cost - sell_stop
+    sell_target = buy_cost + r * risk
+    return sell_target / ((1 - fee) * (1 - friction))

@@ -21,6 +21,7 @@ class ManagementParams:
     trailing_activation_r: float = 1.0
     trailing_atr_multiple: float = 2.5
     time_stop_bars: int = 48
+    breakeven_cost_pct: float = 1.0   # costi andata/ritorno: il "pareggio" è al netto dei costi
 
 
 @dataclass
@@ -54,7 +55,8 @@ def on_bar_close(pos: dict, snap: Snapshot, bar_high: float, strategy: Strategy 
     stop = float(pos["stop_loss"])
 
     if initial_risk > 0 and highest - entry >= params.trailing_activation_r * initial_risk:
-        new_stop = max(stop, entry, highest - params.trailing_atr_multiple * snap.atr)
+        breakeven = entry * (1 + params.breakeven_cost_pct / 100)
+        new_stop = max(stop, min(breakeven, highest), highest - params.trailing_atr_multiple * snap.atr)
         if new_stop > stop:
             updates["stop_loss"] = new_stop
             updates["trailing_active"] = 1

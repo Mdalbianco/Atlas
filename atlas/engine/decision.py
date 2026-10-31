@@ -43,6 +43,9 @@ class DecisionEngine:
         candidates = []
         rejected: list[str] = []
         for strat in self.strategies:
+            if p.regime not in strat.regimes:
+                rejected.append(f"{strat.name}: regime '{p.regime}' non compatibile (opera in: {', '.join(strat.regimes)})")
+                continue
             ev = strat.evaluate(ctx)
             if ev.signal is None:
                 rejected.append(f"{strat.name}: " + "; ".join(ev.reasons[:3]))

@@ -97,6 +97,26 @@ def realized_volatility(close: pd.Series, period: int = 24) -> pd.Series:
     return np.log(close).diff().rolling(period, min_periods=period).std() * 100
 
 
+def bollinger(close: pd.Series, period: int = 20, k: float = 2.0) -> pd.DataFrame:
+    """Bande di Bollinger (deviazione standard di popolazione, come da definizione originale)."""
+    mid = close.rolling(period, min_periods=period).mean()
+    sd = close.rolling(period, min_periods=period).std(ddof=0)
+    upper, lower = mid + k * sd, mid - k * sd
+    width = (upper - lower) / mid * 100
+    pctb = (close - lower) / (upper - lower).replace(0, np.nan)
+    return pd.DataFrame({"bb_mid": mid, "bb_upper": upper, "bb_lower": lower, "bb_width": width, "bb_pctb": pctb})
+
+
+def rolling_rank(series: pd.Series, window: int) -> pd.Series:
+    """Percentile (0-1) del valore corrente rispetto alle ultime ``window`` osservazioni, incluso sé stesso."""
+    return series.rolling(window, min_periods=window).rank(pct=True)
+
+
+def donchian_high(high: pd.Series, period: int) -> pd.Series:
+    """Massimo delle ``period`` candele PRECEDENTI (esclusa la corrente)."""
+    return high.shift(1).rolling(period, min_periods=period).max()
+
+
 def obv(df: pd.DataFrame) -> pd.Series:
     direction = np.sign(df["close"].diff().fillna(0))
     return (direction * df["volume"]).cumsum()
@@ -155,4 +175,9 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     out["ema50_slope"] = slope_pct(out["ema50"], 10)
     out["change_pct"] = close.pct_change() * 100
     out["bar_range_atr"] = (out["high"] - out["low"]) / out["atr"].shift(1)
+    out = out.join(bollinger(close))
+    out["bb_width_rank"] = rolling_rank(out["bb_width"], 120)
+    out["donchian55"] = donchian_high(out["high"], 55)
+    out["adx_slope"] = out["adx"].diff(3)
+    out["ema20_prev_above_ema50"] = (out["ema20"].shift(1) > out["ema50"].shift(1)).astype(float)
     return out

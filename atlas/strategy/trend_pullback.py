@@ -10,10 +10,15 @@ class TrendPullback(Strategy):
     name = "trend_pullback"
     version = "1.0.0"
     status = "in_validazione"
+    regimes = ("trend_rialzista", "laterale")
     description = (
         "Acquista in un trend rialzista confermato (EMA20>EMA50>EMA200, ADX sufficiente) "
         "dopo un ritracciamento verso l'EMA20, quando il momentum riprende."
     )
+
+    @classmethod
+    def param_grid(cls) -> dict:
+        return {"target_r": [2.0, 2.5]}
 
     @classmethod
     def default_params(cls) -> dict:

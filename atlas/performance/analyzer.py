@@ -102,10 +102,53 @@ def generate_proposals(db: Database, save: bool = True) -> list[dict]:
         for p in props:
             p["title"] += f" (campione di {len(df)} operazioni: indicazione preliminare)"
 
+    props += degradation_alerts(db)
+
     if save:
         now = datetime.now(timezone.utc).isoformat()
-        existing = {r["title"] for r in db.query("SELECT title FROM proposals WHERE status = 'proposta'")}
+        existing = {r["title"] for r in db.query("SELECT title FROM proposals")}
         for p in props:
-            if p["title"] not in existing:
+            p["new"] = p["title"] not in existing
+            if p["new"]:
                 db.execute("INSERT INTO proposals(ts, kind, title, evidence) VALUES (?, ?, ?, ?)", (now, p["kind"], p["title"], json.dumps(p["evidence"], default=str)))
     return props
+
+
+def degradation_alerts(db: Database, window: int = 15, tolerance_r: float = 0.3) -> list[dict]:
+    """Confronta le ultime ``window`` operazioni di ogni strategia con l'expectancy attesa dalla validazione.
+
+    Segnala (senza modificare nulla) le strategie che rendono molto meno del previsto.
+    """
+    from atlas.strategy.validation import load_status
+
+    df = closed_trades_frame(db)
+    if df.empty:
+        return []
+    expected = {k.split("@")[0]: v.get("oos", {}).get("expectancy_r") for k, v in load_status().items()}
+    out = []
+    for name, g in df.groupby("strategy"):
+        if len(g) < window:
+            continue
+        recent = float(g["r_multiple"].tail(window).mean())
+        exp = expected.get(name)
+        reference = exp if exp is not None else 0.0
+        if recent < reference - tolerance_r or recent < -0.25:
+            out.append({
+                "kind": "degrado",
+                "title": f"Peggioramento di '{name}': ultime {window} operazioni {recent:+.2f} R contro {reference:+.2f} R attesi — valutare sospensione e nuova validazione",
+                "evidence": {"recent_expectancy_r": recent, "expected_r": exp, "window": window},
+            })
+    return out
+
+
+def compare_books(main_db: Database, shadow_dbs: dict[str, Database]) -> list[dict]:
+    """Tabella comparativa: portafoglio principale e portafogli ombra (uno per strategia)."""
+    rows = []
+    for name, db in {"principale": main_db, **shadow_dbs}.items():
+        m = trade_metrics(closed_trades_frame(db))
+        eq = db.query("SELECT equity FROM equity ORDER BY rowid DESC LIMIT 1")
+        initial = float(db.get_state("initial_capital", 100.0) or 100.0)
+        equity = float(eq[0]["equity"]) if eq else initial
+        rows.append({"book": name, "trades": m.get("trades", 0), "expectancy_r": m.get("expectancy_r"), "win_rate": m.get("win_rate"),
+                     "return_pct": (equity / initial - 1) * 100, "open": len(db.open_positions())})
+    return rows

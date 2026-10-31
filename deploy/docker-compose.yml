@@ -4,8 +4,11 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      args:
+        BASE_IMAGE: ${ATLAS_BASE_IMAGE:-python:3.12-slim}
     container_name: atlas
-    restart: unless-stopped
+    restart: unless-stopped          # riavvio automatico dopo crash o reboot del server
+    stop_grace_period: 90s           # tempo per terminare il ciclo in corso
     env_file: ../.env          # segreti solo qui (file escluso da Git)
     environment:
       ATLAS_MODE: paper        # forzato: il trading reale non è attivabile

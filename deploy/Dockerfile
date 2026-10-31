@@ -1,4 +1,6 @@
-FROM python:3.12-slim
+# Immagine base sostituibile (es. mirror.gcr.io/library/python:3.12-slim se Docker Hub limita i download)
+ARG BASE_IMAGE=python:3.12-slim
+FROM ${BASE_IMAGE}
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app

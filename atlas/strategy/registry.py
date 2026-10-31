@@ -11,11 +11,13 @@ from __future__ import annotations
 from atlas.risk.costs import CostModel
 from atlas.strategy.base import Strategy
 from atlas.strategy.breakout import VolumeBreakout
+from atlas.strategy.mean_reversion import MeanReversion
+from atlas.strategy.trend_following import TrendFollowing
 from atlas.strategy.trend_pullback import TrendPullback
+from atlas.strategy.volatility_squeeze import VolatilitySqueeze
 
 STRATEGIES: dict[str, type[Strategy]] = {
-    TrendPullback.name: TrendPullback,
-    VolumeBreakout.name: VolumeBreakout,
+    cls.name: cls for cls in (TrendFollowing, TrendPullback, VolumeBreakout, MeanReversion, VolatilitySqueeze)
 }
 
 

@@ -40,7 +40,8 @@ def env(settings):
     def make():
         a = Atlas(s, source=m, notifier=notifier, clock=clock)
         a.cycle.engine.strategies = [AlwaysLong()]
-        a.cycle.strategies = {"always_long": AlwaysLong()}
+        a.cycle.strategies.clear()
+        a.cycle.strategies["always_long"] = AlwaysLong()
         return a
 
     return {"m": m, "at": at, "make": make, "notifier": notifier, "settings": s}

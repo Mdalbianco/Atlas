@@ -46,6 +46,18 @@ class Snapshot:
     anomaly_reason: str | None
     structure: StructureResult
     notes: list[str] = field(default_factory=list)
+    # campi aggiunti in v1.1 (con default per compatibilità)
+    open: float = 0.0
+    low: float = 0.0
+    bb_mid: float = 0.0
+    bb_upper: float = 0.0
+    bb_lower: float = 0.0
+    bb_width: float = 0.0
+    bb_width_rank: float = 0.5
+    bb_width_rank_prev: float = 0.5
+    donchian55: float = 0.0
+    adx_slope: float = 0.0
+    ema_cross_up: bool = False    # EMA20 ha appena incrociato al rialzo l'EMA50
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -169,6 +181,17 @@ def build_snapshot(
         anomaly=anomaly_reason is not None,
         anomaly_reason=anomaly_reason,
         structure=structure,
+        open=last("open"),
+        low=last("low"),
+        bb_mid=last("bb_mid"),
+        bb_upper=last("bb_upper"),
+        bb_lower=last("bb_lower"),
+        bb_width=last("bb_width"),
+        bb_width_rank=last("bb_width_rank", 0.5),
+        bb_width_rank_prev=last("bb_width_rank", 0.5, offset=2),
+        donchian55=last("donchian55"),
+        adx_slope=last("adx_slope"),
+        ema_cross_up=bool(ema20 > ema50 and last("ema20_prev_above_ema50") == 0.0),
     )
 
 

@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 
 from atlas import __version__
 from atlas.app import Atlas
+from atlas.ops import SingleInstanceLock, backup_databases
+from atlas.performance.analyzer import generate_proposals
 from atlas.logging_setup import get_logger
 from atlas.telegram import formatters as fmt
 
@@ -23,12 +25,32 @@ class Scheduler:
     def _maybe_daily_report(self) -> None:
         now = datetime.now(timezone.utc)
         today = now.date().isoformat()
-        if now.hour >= self.atlas.settings.daily_report_hour_utc and self.atlas.db.get_state("last_daily_report") != today:
-            self.atlas.db.set_state("last_daily_report", today)
+        db, st = self.atlas.db, self.atlas.settings
+        if now.hour >= st.daily_report_hour_utc and db.get_state("last_daily_report") != today:
+            db.set_state("last_daily_report", today)
             try:
                 self.atlas.notifier.send("🗓 ATLAS — Riepilogo giornaliero\n\n" + self.atlas.text_status() + "\n\n" + self.atlas.text_performance())
             except Exception:  # noqa: BLE001
                 log.exception("report giornaliero non inviato")
+            try:
+                backup_databases(st.data_dir, keep=st.backup_keep, now=now)
+                db.set_state("last_backup", now.isoformat())
+            except Exception as exc:  # noqa: BLE001
+                db.log_event("backup_error", str(exc), level="ERROR")
+                self.atlas.notifier.send(f"⚠️ ATLAS — Backup del database non riuscito: {type(exc).__name__}")
+            if now.weekday() == st.weekly_report_weekday:
+                self._weekly_report()
+
+    def _weekly_report(self) -> None:
+        try:
+            props = generate_proposals(self.atlas.db)
+            new = [p for p in props if p.get("new")]
+            text = "📊 ATLAS — Report settimanale\n\n" + self.atlas.text_comparison()
+            if new:
+                text += "\n\n💡 Nuove proposte (da validare con backtest, mai applicate automaticamente):\n" + "\n".join(f"• {p['title']}" for p in new)
+            self.atlas.notifier.send(text)
+        except Exception:  # noqa: BLE001
+            log.exception("report settimanale non inviato")
 
     def loop(self) -> None:
         log.info("scheduler avviato", extra={"data": {"interval_s": self.interval}})
@@ -61,6 +83,14 @@ def startup_message(atlas: Atlas) -> str:
 
 
 def run_forever(atlas: Atlas) -> None:
+    lock = SingleInstanceLock(atlas.settings.data_dir).acquire()   # AlreadyRunning se c'è già un'istanza
+    try:
+        _run_forever(atlas)
+    finally:
+        lock.release()
+
+
+def _run_forever(atlas: Atlas) -> None:
     stop = threading.Event()
 
     def _graceful(signum, _frame):
@@ -89,4 +119,5 @@ def run_forever(atlas: Atlas) -> None:
         while thread.is_alive():
             thread.join(timeout=1)
     atlas.db.log_event("shutdown", "ATLAS arrestato in modo ordinato")
+    atlas.cycle.close()
     atlas.db.close()

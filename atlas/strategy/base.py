@@ -32,6 +32,7 @@ class Strategy(ABC):
     version: str = "0"
     status: str = "sperimentale"   # sperimentale | in_validazione | validata | attiva | ritirata
     description: str = ""
+    regimes: tuple[str, ...] = ("trend_rialzista", "laterale")   # regimi in cui la strategia ha senso
 
     def __init__(self, costs: CostModel | None = None, **params) -> None:
         self.costs = costs or CostModel()
@@ -39,6 +40,11 @@ class Strategy(ABC):
 
     @classmethod
     def default_params(cls) -> dict:
+        return {}
+
+    @classmethod
+    def param_grid(cls) -> dict:
+        """Griglia PICCOLA e fissata a priori per la validazione walk-forward."""
         return {}
 
     @property

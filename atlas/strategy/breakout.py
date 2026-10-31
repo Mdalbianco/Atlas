@@ -10,10 +10,15 @@ class VolumeBreakout(Strategy):
     name = "breakout"
     version = "1.0.0"
     status = "in_validazione"
+    regimes = ("trend_rialzista", "laterale")
     description = (
         "Acquista la rottura del massimo delle ultime 20 candele dopo un consolidamento, "
         "solo con volume relativo elevato e prezzo sopra l'EMA50."
     )
+
+    @classmethod
+    def param_grid(cls) -> dict:
+        return {"target_r": [2.0, 2.5]}
 
     @classmethod
     def default_params(cls) -> dict:

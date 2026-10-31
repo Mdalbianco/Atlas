@@ -145,8 +145,16 @@ class Atlas:
         market = self.cycle._market_reference()
         a = self.cycle.analyzer.analyze(sym, market)
         st = self._state()
-        decision = self.cycle.engine.decide_entry(a.ctx, st, self.source.market_rules(sym), self.cycle.clock())
-        return fmt.analysis_message(a.ctx, decision) + "\n\n(Analisi su richiesta: nessuna operazione viene eseguita da questo comando.)"
+        decision = self.cycle.analysis_engine.decide_entry(a.ctx, st, self.source.market_rules(sym), self.cycle.clock())
+        active = ", ".join(self.cycle.strategies) or "nessuna (nessuna strategia ha superato la validazione)"
+        note = (
+            f"\n\nStrategie attive nel portafoglio principale: {active}."
+            + (f"\nIn osservazione (portafogli ombra): {', '.join(self.cycle.shadow_names)}." if self.cycle.shadow_names else "")
+            + "\n(Analisi su richiesta: nessuna operazione viene eseguita da questo comando.)"
+        )
+        if decision.strategy and decision.strategy not in self.cycle.strategies and decision.action.value == "ENTER":
+            decision.summary = f"Setup valido per {decision.strategy} (strategia NON attiva: registrato solo nel portafoglio ombra)"
+        return fmt.analysis_message(a.ctx, decision) + note
 
     def text_signals(self, limit: int = 8) -> str:
         rows = self.db.query("SELECT * FROM decisions ORDER BY id DESC LIMIT ?", (limit,))
@@ -175,12 +183,32 @@ class Atlas:
         return "\n".join(lines)
 
     def text_strategies(self) -> str:
-        active = set(self.settings.strategies)
+        from atlas.strategy.registry import STRATEGIES
+        from atlas.strategy.validation import status_of
+
         lines = ["🧠 Strategie", ""]
-        for d in describe():
-            flag = "✅ attiva" if d["name"] in active else "⏹ non attiva"
-            lines.append(f"{d['name']} v{d['version']} — {flag}, stato: {d['status']}\n   {d['description']}")
-        lines.append("\nNessuna strategia è considerata validata finché non supera il walk-forward su dati reali (docs/STRATEGIES.md).")
+        icons = {"validata": "✅", "respinta": "❌", "non_validata": "⏳"}
+        for st in self.cycle.candidates:
+            vs = status_of(st)
+            where = "portafoglio principale" if st.name in self.cycle.strategies else "solo portafoglio ombra (isolato)"
+            lines.append(f"{icons.get(vs.status, '•')} {st.id} — {vs.status}, {where}")
+            lines.append(f"   {STRATEGIES[st.name].description}")
+            if vs.reason:
+                lines.append(f"   Validazione: {vs.reason}")
+        lines += ["", "Regola: entra nel portafoglio principale solo una versione che ha superato il walk-forward su dati reali "
+                  "(docs/STRATEGIES_AND_SCORING.md). Le altre raccolgono evidenza in portafogli virtuali separati."]
+        return "\n".join(lines)
+
+    def text_comparison(self) -> str:
+        from atlas.performance.analyzer import compare_books
+
+        rows = compare_books(self.db, {b.name: b.db for b in self.cycle.shadow_books})
+        lines = ["⚖️ Confronto portafogli (paper trading, 100 € virtuali ciascuno)", ""]
+        for r in rows:
+            label = "PRINCIPALE" if r["book"] == "principale" else f"ombra · {r['book']}"
+            exp = f"{fmt.num(r['expectancy_r'])} R" if r["expectancy_r"] is not None else "n/d"
+            lines.append(f"{label}: {fmt.signed_pct(r['return_pct'])} · {r['trades']} op. chiuse · expectancy {exp} · {r['open']} aperte")
+        lines.append("\nRisultati di paper trading reale (non backtest). Con poche operazioni non sono significativi.")
         return "\n".join(lines)
 
     # --- trading -----------------------------------------------------------
@@ -235,7 +263,7 @@ class Atlas:
     def text_report(self) -> str:
         perf = self.text_performance()
         props = generate_proposals(self.db)
-        lines = [self.text_status(), "", perf, "", "💡 Proposte (da validare con backtest, mai applicate automaticamente):"]
+        lines = [self.text_status(), "", perf, "", self.text_comparison(), "", "💡 Proposte (da validare con backtest, mai applicate automaticamente):"]
         lines += [f"• {p['title']}" for p in props] or ["• nessuna"]
         return "\n".join(lines)
 

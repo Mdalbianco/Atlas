@@ -14,7 +14,14 @@ from atlas.data.sources import SyntheticMarket
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
-    return Settings(data_dir=tmp_path, cycle_interval_seconds=60)
+    # configurazione storica dei test: due strategie, senza cancello di validazione né book ombra
+    return Settings(
+        data_dir=tmp_path,
+        cycle_interval_seconds=60,
+        strategies=("trend_pullback", "breakout"),
+        require_validation=False,
+        shadow_strategies=False,
+    )
 
 
 @pytest.fixture(scope="session")

@@ -61,7 +61,7 @@ def test_trend_pullback_invalidation():
 
 
 def test_registry():
-    assert set(STRATEGIES) == {"trend_pullback", "breakout"}
+    assert set(STRATEGIES) == {"trend_following", "trend_pullback", "breakout", "mean_reversion", "volatility_squeeze"}
     assert [s.name for s in build_strategies(["breakout"])] == ["breakout"]
     with pytest.raises(ValueError):
         build_strategies(["inesistente"])

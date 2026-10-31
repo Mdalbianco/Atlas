@@ -109,3 +109,25 @@ def test_retries_with_backoff():
     assert sleeps == [1.0, 2.0]
     with pytest.raises(ExchangeUnavailable):
         with_retries(lambda: (_ for _ in ()).throw(TimeoutError()), retries=2, retry_on=(TimeoutError,), sleep=lambda s: None)
+
+
+def test_real_kraken_client_is_read_only_even_with_keys():
+    pytest.importorskip("ccxt")
+    from atlas.data.exchange import KrakenDataSource
+
+    src = KrakenDataSource(api_key="finta-chiave-123456", api_secret="ZmludG8tc2VncmV0by0xMjM0NTY=")
+    assert isinstance(src._exchange, ReadOnlyExchange)
+    for name in ("create_order", "create_market_buy_order", "cancel_order", "withdraw", "transfer", "private_post_add_order", "edit_order"):
+        with pytest.raises(PermissionError):
+            getattr(src._exchange, name)
+
+
+def test_no_execution_path_to_live_broker():
+    """Nessun modulo operativo importa o istanzia LiveBroker."""
+    from pathlib import Path
+
+    import atlas
+
+    root = Path(atlas.__file__).parent
+    users = [p for p in root.rglob("*.py") if "LiveBroker" in p.read_text(encoding="utf-8") and p.name != "live.py"]
+    assert users == []

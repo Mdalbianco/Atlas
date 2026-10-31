@@ -137,3 +137,10 @@ def test_python_telegram_bot_integration(router, monkeypatch):
 
     asyncio.run(run())
     assert replies and "Stato" in replies[0]
+
+
+def test_strategies_and_comparison_texts(router):
+    out = router.handle("/strategie", [], USER)
+    for name in ("trend_pullback", "breakout"):
+        assert name in out
+    assert "PRINCIPALE" in router.atlas.text_comparison()

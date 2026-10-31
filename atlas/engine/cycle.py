@@ -20,6 +20,7 @@ from __future__ import annotations
 import threading
 import traceback
 from dataclasses import dataclass, field
+from pathlib import Path
 from datetime import datetime, timezone
 
 from atlas.analysis.snapshot import Snapshot, build_snapshot
@@ -36,7 +37,9 @@ from atlas.risk.costs import CostModel
 from atlas.risk.manager import RiskLimits, RiskManager
 from atlas.scoring import ScoreEngine
 from atlas.storage.db import Database
+from atlas.strategy.base import Strategy
 from atlas.strategy.registry import build_strategies
+from atlas.strategy.validation import split_active_shadow
 from atlas.telegram import formatters as fmt
 from atlas.telegram.notifier import Notifier
 
@@ -56,6 +59,24 @@ class CycleReport:
     equity: float | None = None
 
 
+@dataclass
+class Book:
+    """Un portafoglio virtuale con le proprie strategie e il proprio database.
+
+    Il book ``principale`` usa solo strategie validate e invia le notifiche.
+    I book ombra (uno per strategia non validata) sono completamente isolati:
+    database e capitale separati, nessuna notifica di operazione, nessun effetto
+    sul portafoglio principale.
+    """
+
+    name: str
+    db: Database
+    account: PaperAccount
+    engine: DecisionEngine
+    strategies: dict[str, Strategy]
+    primary: bool
+
+
 class TradingCycle:
     def __init__(self, settings, db: Database, source: MarketDataSource, notifier: Notifier, clock=None) -> None:
         self.s = settings
@@ -68,15 +89,39 @@ class TradingCycle:
         self.costs = CostModel(settings.taker_fee_pct, settings.slippage_pct, settings.default_spread_pct)
         self.limits = RiskLimits.from_settings(settings)
         self.risk = RiskManager(self.limits, self.costs)
-        self.strategies = {st.name: st for st in build_strategies(settings.strategies, costs=self.costs)}
-        self.engine = DecisionEngine(list(self.strategies.values()), ScoreEngine(self.costs, settings.min_reward_risk), self.risk, settings.min_score)
+        self.scorer = ScoreEngine(self.costs, settings.min_reward_risk)
+        candidates = build_strategies(settings.strategies, costs=self.costs)
+        active, shadow = split_active_shadow(candidates, settings.require_validation)
+        self.candidates = candidates
+        self.strategies = {st.name: st for st in active}
+        self.shadow_names = [st.name for st in shadow]
+        self.engine = DecisionEngine(active, self.scorer, self.risk, settings.min_score)
+        # motore di sola analisi (comando /analisi): valuta tutte le strategie candidate
+        self.analysis_engine = DecisionEngine(candidates, self.scorer, self.risk, settings.min_score)
         self.account = PaperAccount(db, PaperBroker(self.costs), settings.initial_capital, clock=self.clock)
         self.lock = threading.RLock()  # un solo ciclo / chiusura manuale alla volta
         self.mgmt = ManagementParams(settings.trailing_activation_r, settings.trailing_atr_multiple, settings.time_stop_bars, breakeven_cost_pct=2 * self.costs.per_side_pct)
+        self.main_book = Book("principale", db, self.account, self.engine, self.strategies, primary=True)
+        self.shadow_books: list[Book] = []
+        if settings.shadow_strategies and db.path != ":memory:":
+            shadow_dir = Path(db.path).parent / "shadow"
+            for st in shadow:
+                sdb = Database(shadow_dir / f"{st.name}.db")
+                acc = PaperAccount(sdb, PaperBroker(self.costs), settings.initial_capital, clock=self.clock)
+                eng = DecisionEngine([st], self.scorer, self.risk, settings.min_score)
+                self.shadow_books.append(Book(st.name, sdb, acc, eng, {st.name: st}, primary=False))
         if not db.watchlist() and db.get_state("watchlist_seeded") is None:
             for sym in settings.watchlist:
                 db.add_watch(sym)
             db.set_state("watchlist_seeded", True)
+
+    @property
+    def books(self) -> list[Book]:
+        return [self.main_book, *self.shadow_books]
+
+    def close(self) -> None:
+        for b in self.shadow_books:
+            b.db.close()
 
     # ------------------------------------------------------------------
     def _notify(self, text: str) -> None:
@@ -120,8 +165,8 @@ class TradingCycle:
             raise ExchangeUnavailable("exchange non raggiungibile (health check fallito)")
 
         watch = self.db.watchlist()
-        open_positions = {p["symbol"]: p for p in self.db.open_positions()}
-        symbols = list(dict.fromkeys(watch + list(open_positions)))
+        open_symbols = [p["symbol"] for b in self.books for p in b.db.open_positions()]
+        symbols = list(dict.fromkeys(watch + open_symbols))
 
         market_snap = self._market_reference()
         analyses: dict[str, SymbolAnalysis] = {}
@@ -133,34 +178,51 @@ class TradingCycle:
                 rep.errors.append(f"{sym}: {exc}")
                 self.db.log_event("data_error", f"{sym}: {exc}", level="WARNING")
 
-        # --- gestione posizioni aperte ----------------------------------
-        for sym, pos in open_positions.items():
-            a = analyses.get(sym)
+        intrabar: dict[str, list] = {}
+        self._process_book(self.main_book, analyses, watch, now, rep, intrabar)
+        for book in self.shadow_books:
+            shadow_rep = CycleReport(started_at=now)
             try:
-                closed = self._manage_position(pos, a, now)
+                self._process_book(book, analyses, watch, now, shadow_rep, intrabar)
+            except Exception as exc:  # noqa: BLE001 - un book ombra non deve mai fermare il principale
+                book.db.log_event("shadow_error", f"{type(exc).__name__}: {exc}", level="ERROR")
+                log.warning("errore nel portafoglio ombra", extra={"data": {"book": book.name, "error": str(exc)}})
+
+    def _process_book(self, book: Book, analyses: dict, watch: list[str], now: datetime, rep: CycleReport, intrabar: dict) -> None:
+        notify = book.primary
+        # --- gestione posizioni aperte ----------------------------------
+        for pos in book.db.open_positions():
+            sym = pos["symbol"]
+            try:
+                closed = self._manage_position(book, pos, analyses.get(sym), now, intrabar)
                 if closed:
                     rep.closed.append(closed)
-                    self._notify(fmt.closed_message(closed))
+                    if notify:
+                        self._notify(fmt.closed_message(closed))
             except (ExchangeUnavailable, DataQualityError) as exc:
                 rep.errors.append(f"gestione {sym}: {exc}")
 
         prices = {sym: a.ticker["last"] for sym, a in analyses.items()}
-        state = self.account.mark_to_market(prices)
+        state = book.account.mark_to_market(prices)
         rep.equity = state.equity
-        self.db.record_equity(state.cash, state.equity, state.exposure, len(state.positions))
+        book.db.record_equity(state.cash, state.equity, state.exposure, len(state.positions))
 
         halt = self.risk.should_halt(state)
         if halt and not state.halted:
-            self.account.halt(halt)
-            self._notify(fmt.halt_message(halt))
-            state = self.account.state(prices)
+            book.account.halt(halt)
+            if notify:
+                self._notify(fmt.halt_message(halt))
+            state = book.account.state(prices)
 
         blocks = self.risk.portfolio_blocks(state, now)
         rep.blocks = blocks
-        self._notify_block_change(blocks)
+        if notify:
+            self._notify_block_change(blocks)
+        if not book.engine.strategies:
+            return
 
         # --- nuove opportunità -------------------------------------------
-        last_eval = self.db.get_state("last_eval_bar", {}) or {}
+        last_eval = book.db.get_state("last_eval_bar", {}) or {}
         frames = {sym: a.primary_df for sym, a in analyses.items()}
         for sym in watch:
             a = analyses.get(sym)
@@ -171,28 +233,29 @@ class TradingCycle:
                 continue  # candela già valutata
             rules = self.source.market_rules(sym)
             corr = correlations(a.primary_df, {p.symbol: frames[p.symbol] for p in state.positions if p.symbol in frames})
-            decision = self.engine.decide_entry(a.ctx, state, rules, now, correlations=corr)
+            decision = book.engine.decide_entry(a.ctx, state, rules, now, correlations=corr)
             last_eval[sym] = bar_ts
-            self.db.record_decision(sym, decision.action.value, decision.summary, bar_ts, decision.strategy, decision.score.score if decision.score else None, decision.to_dict())
+            book.db.record_decision(sym, decision.action.value, decision.summary, bar_ts, decision.strategy, decision.score.score if decision.score else None, decision.to_dict())
             rep.decisions.append({"symbol": sym, "action": decision.action.value, "summary": decision.summary})
             if decision.action is Action.ENTER:
                 ticker = a.ticker
                 try:
-                    position = self.account.open_position(
+                    position = book.account.open_position(
                         decision.signal, decision.risk, decision.score, rules,
                         reference_price=ticker["last"], spread_pct=ticker.get("spread_pct"),
                         market_context={"primary": a.ctx.primary.to_dict(), "higher": a.ctx.higher.to_dict() if a.ctx.higher else None, "market_condition": a.ctx.market_condition},
                         now=now,
                     )
                 except OrderRejected as exc:
-                    self.db.log_event("order_rejected", f"{sym}: {exc}", level="WARNING")
+                    book.db.log_event("order_rejected", f"{sym}: {exc}", level="WARNING")
                     rep.errors.append(f"{sym}: ordine rifiutato ({exc})")
                     continue
                 if position:
                     rep.opened.append(position)
-                    self._notify(fmt.opened_message(position, decision, a.ctx))
-                    state = self.account.state(prices)
-        self.db.set_state("last_eval_bar", last_eval)
+                    if notify:
+                        self._notify(fmt.opened_message(position, decision, a.ctx))
+                    state = book.account.state(prices)
+        book.db.set_state("last_eval_bar", last_eval)
 
     def _market_reference(self) -> Snapshot | None:
         try:
@@ -210,12 +273,18 @@ class TradingCycle:
                 self._notify(fmt.blocked_message("\n".join(f"• {b}" for b in blocks)))
 
     # ------------------------------------------------------------------
-    def _manage_position(self, pos: dict, analysis: SymbolAnalysis | None, now: datetime) -> dict | None:
+    def _manage_position(self, book: Book, pos: dict, analysis: SymbolAnalysis | None, now: datetime, intrabar: dict | None = None) -> dict | None:
         sym = pos["symbol"]
+        account = book.account
         # 1) stop/target sulle candele a 5 minuti successive all'apertura (intrabar)
         opened_ms = int(datetime.fromisoformat(pos["opened_at"]).timestamp() * 1000)
         checked_ms = int((pos.get("meta") or {}).get("intrabar_checked_ms", opened_ms))
-        rows = self.source.fetch_ohlcv(sym, "5m", 60)
+        if intrabar is not None and sym in intrabar:
+            rows = intrabar[sym]
+        else:
+            rows = self.source.fetch_ohlcv(sym, "5m", 60)
+            if intrabar is not None:
+                intrabar[sym] = rows
         spread = analysis.ticker.get("spread_pct") if analysis else None
         last_ts = checked_ms
         for ts, o, h, l, c, _v in rows:
@@ -225,14 +294,14 @@ class TradingCycle:
                 o = h = l = c
             ex = check_stop_target(pos, float(o), float(h), float(l))
             if ex:
-                return self.account.close_position(pos, ex.reference_price, ex.reason, ex.detail, spread, now)
+                return account.close_position(pos, ex.reference_price, ex.reason, ex.detail, spread, now)
             last_ts = max(last_ts, int(ts))
         if analysis is None:
             return None
         ticker_last = analysis.ticker["last"]
         ex = check_stop_target(pos, ticker_last, ticker_last, ticker_last)
         if ex:
-            return self.account.close_position(pos, ticker_last, ex.reason, ex.detail, spread, now)
+            return account.close_position(pos, ticker_last, ex.reason, ex.detail, spread, now)
 
         meta = dict(pos.get("meta") or {})
         meta["intrabar_checked_ms"] = last_ts
@@ -243,21 +312,22 @@ class TradingCycle:
         new_bars = df[df["timestamp"] > int(pos.get("last_bar_ts") or 0)]
         exit_signal = None
         work = dict(pos)
+        strategy = book.strategies.get(pos["strategy"]) or next((s for s in self.candidates if s.name == pos["strategy"]), None)
         for idx in new_bars.index:
             view = df.loc[:idx]
             if len(view) < 210:
                 continue
             snap = build_snapshot(sym, self.s.timeframe, view, self.s.max_bar_move_atr, enriched=view)
-            upd, ex = on_bar_close(work, snap, float(df.at[idx, "high"]), self.strategies.get(pos["strategy"]), self.mgmt)
+            upd, ex = on_bar_close(work, snap, float(df.at[idx, "high"]), strategy, self.mgmt)
             work.update(upd)
             updates.update(upd)
             if ex:
                 exit_signal = ex
                 break
-        self.db.update_position(pos["id"], **updates)
+        book.db.update_position(pos["id"], **updates)
         if exit_signal:
-            fresh = self.db.position(pos["id"])
-            return self.account.close_position(fresh, ticker_last, exit_signal.reason, exit_signal.detail, spread, now)
+            fresh = book.db.position(pos["id"])
+            return account.close_position(fresh, ticker_last, exit_signal.reason, exit_signal.detail, spread, now)
         return None
 
     # ------------------------------------------------------------------
@@ -271,4 +341,3 @@ class TradingCycle:
             return None
         t = self.market.ticker(symbol)
         return self.account.close_position(pos, t["last"], ExitReason.MANUAL, "chiusura richiesta dall'utente", t.get("spread_pct"), self.clock())
-

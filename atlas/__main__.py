@@ -41,10 +41,13 @@ def cmd_run(args) -> int:
 
 def cmd_cycle(args) -> int:
     from atlas.app import Atlas
+    from atlas.ops import SingleInstanceLock
 
-    atlas = Atlas(_settings())
-    rep = atlas.cycle.run_once()
-    print(json.dumps({"ok": rep.ok, "analyzed": rep.analyzed, "decisions": rep.decisions, "opened": len(rep.opened), "closed": len(rep.closed), "errors": rep.errors, "equity": rep.equity}, ensure_ascii=False, indent=2))
+    s = _settings()
+    with SingleInstanceLock(s.data_dir):   # non si sovrappone a un servizio già attivo
+        atlas = Atlas(s)
+        rep = atlas.cycle.run_once()
+        print(json.dumps({"ok": rep.ok, "analyzed": rep.analyzed, "decisions": rep.decisions, "opened": len(rep.opened), "closed": len(rep.closed), "errors": rep.errors, "equity": rep.equity}, ensure_ascii=False, indent=2))
     return 0 if rep.ok else 1
 
 
@@ -95,6 +98,59 @@ def cmd_download(args) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out, index=False)
     print(f"{len(df)} candele salvate in {out}. Nota: l'API OHLC di Kraken fornisce solo le ultime ~720 candele; per storici lunghi usare i file OHLCVT ufficiali Kraken (vedi docs/BACKTESTING.md).")
+    return 0
+
+
+def cmd_history(args) -> int:
+    from atlas.data.kraken_history import download_trades_ohlcv
+
+    res = download_trades_ohlcv(args.symbol.upper(), args.out, days=args.days, timeframe=args.timeframe, max_requests=args.max_requests)
+    state = "completato" if res["finished"] else "interrotto (rilancia lo stesso comando per riprendere)"
+    print(f"{res['symbol']}: {res['rows']} candele scritte in {res['out']} con {res['requests']} richieste — {state}")
+    return 0
+
+
+def _backtest_config(s, data):
+    from atlas.backtest.engine import BacktestConfig
+    from atlas.engine.position_manager import ManagementParams
+    from atlas.risk.costs import CostModel
+    from atlas.risk.manager import RiskLimits
+
+    costs = CostModel(s.taker_fee_pct, s.slippage_pct, s.default_spread_pct)
+    return BacktestConfig(
+        initial_capital=s.initial_capital,
+        timeframe=s.timeframe,
+        higher_timeframe=s.higher_timeframe,
+        min_score=s.min_score,
+        spread_pct=s.default_spread_pct,
+        costs=costs,
+        limits=RiskLimits.from_settings(s),
+        management=ManagementParams(s.trailing_activation_r, s.trailing_atr_multiple, s.time_stop_bars, breakeven_cost_pct=2 * costs.per_side_pct),
+        market_symbol=s.market_reference if s.market_reference in data else None,
+    )
+
+
+def cmd_validate(args) -> int:
+    from atlas.backtest.validation_runner import markdown, validate_all, write_status
+    from atlas.config import load_settings, normalize_symbol
+    from atlas.data.sources import load_csv
+
+    s = load_settings()
+    data = {}
+    for item in args.csv:
+        sym, path = item.split("=", 1) if "=" in item else (symbol_from_filename(item), item)
+        data[normalize_symbol(sym, s.quote_currency)] = load_csv(path)
+    names = args.strategies.split(",") if args.strategies else list(s.strategies)
+    report = validate_all(data, _backtest_config(s, data), names, args.train_bars, args.test_bars, source=args.source)
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.with_suffix(".json").write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    md = markdown(report)
+    out.with_suffix(".md").write_text(md, encoding="utf-8")
+    print(md)
+    if args.write_status:
+        write_status(report)
+        print("\nFile di stato aggiornato: diventa effettivo solo dopo revisione e commit.")
     return 0
 
 
@@ -172,7 +228,29 @@ def cmd_backtest(args) -> int:
     return 0
 
 
+def cmd_backup(args) -> int:
+    from atlas.config import load_settings
+    from atlas.ops import backup_databases, verify_backup
+
+    s = load_settings()
+    files = backup_databases(s.data_dir, keep=s.backup_keep)
+    for f in files:
+        print(f"{f}  integrità: {'OK' if verify_backup(f) else 'ERRORE'}")
+    return 0 if files else 1
+
+
 def main(argv: list[str] | None = None) -> int:
+    from atlas.config import ConfigError
+    from atlas.ops import AlreadyRunning
+
+    try:
+        return _main(argv)
+    except (ConfigError, AlreadyRunning) as exc:   # arresto sicuro, messaggio leggibile
+        print(f"ATLAS non avviato: {exc}", file=sys.stderr)
+        return 2
+
+
+def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="atlas", description="ATLAS — analisi e paper trading crypto")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("run", help="avvia bot Telegram e scheduler").set_defaults(func=cmd_run)
@@ -182,12 +260,29 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_analyze)
     sub.add_parser("status", help="stato e performance").set_defaults(func=cmd_status)
     sub.add_parser("healthcheck", help="verifica heartbeat").set_defaults(func=cmd_healthcheck)
+    sub.add_parser("backup", help="backup verificato dei database").set_defaults(func=cmd_backup)
     p = sub.add_parser("download", help="scarica candele da Kraken in CSV")
     p.add_argument("symbol")
     p.add_argument("--timeframe", default="1h")
     p.add_argument("--days", type=int, default=30)
     p.add_argument("--out", required=True)
     p.set_defaults(func=cmd_download)
+    p = sub.add_parser("history", help="storico lungo dai trade pubblici Kraken (riprendibile)")
+    p.add_argument("symbol")
+    p.add_argument("--days", type=int, default=365)
+    p.add_argument("--timeframe", default="1h")
+    p.add_argument("--out", required=True)
+    p.add_argument("--max-requests", type=int, default=None)
+    p.set_defaults(func=cmd_history)
+    p = sub.add_parser("validate", help="walk-forward per strategia su dati reali e report di promozione")
+    p.add_argument("--csv", nargs="+", required=True)
+    p.add_argument("--strategies")
+    p.add_argument("--train-bars", type=int, default=2000)
+    p.add_argument("--test-bars", type=int, default=1000)
+    p.add_argument("--out", default="reports/validazione")
+    p.add_argument("--write-status", action="store_true", help="aggiorna atlas/strategy/validation_status.json")
+    p.add_argument("--source", default="file CSV forniti dall'utente", help="descrizione della provenienza dei dati")
+    p.set_defaults(func=cmd_validate)
     p = sub.add_parser("backtest", help="backtest / validazione")
     p.add_argument("--csv", nargs="*", help="file CSV (nome tipo BTC_EUR_1h.csv) oppure SIMBOLO=percorso")
     p.add_argument("--synthetic", action="store_true")

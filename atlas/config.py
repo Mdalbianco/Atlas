@@ -106,7 +106,9 @@ class Settings:
     # --- Decisione / scoring ----------------------------------------------
     min_score: float = 65.0
     min_reward_risk: float = 1.8      # netto di commissioni
-    strategies: tuple[str, ...] = ("trend_pullback", "breakout")
+    strategies: tuple[str, ...] = ("trend_following", "trend_pullback", "breakout", "mean_reversion", "volatility_squeeze")
+    require_validation: bool = True    # nel portafoglio principale solo strategie validate
+    shadow_strategies: bool = True     # le altre girano in portafogli ombra isolati
 
     # --- Rischio ------------------------------------------------------------
     risk_per_trade_pct: float = 1.0
@@ -132,6 +134,8 @@ class Settings:
     # --- Scheduler -----------------------------------------------------
     cycle_interval_seconds: int = 300
     daily_report_hour_utc: int = 20
+    weekly_report_weekday: int = 6     # 0 = lunedì … 6 = domenica
+    backup_keep: int = 14              # backup giornalieri del database conservati
 
     # --- Telegram -----------------------------------------------------------
     telegram_token: str | None = field(default=None, repr=False)
@@ -199,6 +203,17 @@ class Settings:
             )
         if self.cycle_interval_seconds < 30:
             errors.append("ATLAS_CYCLE_INTERVAL_SECONDS deve essere >= 30 (rate limit Kraken)")
+        if self.telegram_token and not (self.telegram_allowed_users or self.telegram_admin_users):
+            errors.append("TELEGRAM_TOKEN impostato ma TELEGRAM_ALLOWED_USERS/TELEGRAM_ADMIN_USERS vuoti: configurazione ambigua")
+        if bool(self.telegram_token) != bool(self.telegram_chat_id):
+            errors.append("TELEGRAM_TOKEN e TELEGRAM_CHAT_ID vanno impostati insieme")
+        if bool(self.kraken_api_key) != bool(self.kraken_api_secret):
+            errors.append("KRAKEN_API_KEY e KRAKEN_API_SECRET vanno impostati insieme (o nessuno dei due)")
+        from atlas.strategy.registry import STRATEGIES
+
+        for name in self.strategies:
+            if name not in STRATEGIES:
+                errors.append(f"Strategia sconosciuta in ATLAS_STRATEGIES: {name}")
         for symbol in self.watchlist:
             if "/" not in symbol:
                 errors.append(f"Simbolo watchlist non valido: {symbol} (formato BASE/QUOTE)")
@@ -213,10 +228,33 @@ def normalize_symbol(symbol: str, quote: str = "EUR") -> str:
     return symbol
 
 
+KNOWN_ENV = {
+    "ATLAS_MODE", "ATLAS_DATA_DIR", "ATLAS_LOG_LEVEL", "ATLAS_LOG_JSON", "ATLAS_QUOTE_CURRENCY", "ATLAS_WATCHLIST",
+    "ATLAS_INITIAL_CAPITAL", "ATLAS_TAKER_FEE_PCT", "ATLAS_MAKER_FEE_PCT", "ATLAS_SLIPPAGE_PCT",
+    "ATLAS_DEFAULT_SPREAD_PCT", "ATLAS_MIN_ORDER_COST", "ATLAS_TIMEFRAME", "ATLAS_HIGHER_TIMEFRAME",
+    "ATLAS_CANDLES_LIMIT", "ATLAS_MARKET_REFERENCE", "ATLAS_MIN_SCORE", "ATLAS_MIN_REWARD_RISK", "ATLAS_STRATEGIES",
+    "ATLAS_REQUIRE_VALIDATION", "ATLAS_SHADOW_STRATEGIES", "ATLAS_RISK_PER_TRADE_PCT", "ATLAS_MAX_POSITION_PCT",
+    "ATLAS_MAX_EXPOSURE_PCT", "ATLAS_MAX_OPEN_POSITIONS", "ATLAS_MAX_DAILY_LOSS_PCT", "ATLAS_MAX_DRAWDOWN_PCT",
+    "ATLAS_MAX_CONSECUTIVE_LOSSES", "ATLAS_COOLDOWN_HOURS", "ATLAS_MAX_CORRELATED_RISK_PCT",
+    "ATLAS_CORRELATION_THRESHOLD", "ATLAS_MAX_SPREAD_PCT", "ATLAS_MAX_BAR_MOVE_ATR", "ATLAS_MAX_DATA_AGE_MINUTES",
+    "ATLAS_MAX_CONSECUTIVE_ERRORS", "ATLAS_TRAILING_ACTIVATION_R", "ATLAS_TRAILING_ATR_MULTIPLE",
+    "ATLAS_TIME_STOP_BARS", "ATLAS_CYCLE_INTERVAL_SECONDS", "ATLAS_DAILY_REPORT_HOUR_UTC",
+    "ATLAS_WEEKLY_REPORT_WEEKDAY", "ATLAS_BACKUP_KEEP", "ATLAS_EXCHANGE_TIMEOUT_MS", "ATLAS_EXCHANGE_MAX_RETRIES",
+}
+
+
 def load_settings(env_file: str | None = ".env") -> Settings:
-    """Carica e valida la configurazione dall'ambiente."""
+    """Carica e valida la configurazione dall'ambiente.
+
+    Interruzione sicura se la configurazione è ambigua: una variabile ``ATLAS_*``
+    sconosciuta (es. un errore di battitura in un limite di rischio) blocca l'avvio
+    invece di essere ignorata silenziosamente.
+    """
     if load_dotenv is not None and env_file and Path(env_file).exists():
         load_dotenv(env_file, override=False)
+    unknown = sorted(k for k in os.environ if k.startswith("ATLAS_") and k not in KNOWN_ENV)
+    if unknown:
+        raise ConfigError("Variabili ATLAS_* non riconosciute (errore di battitura?): " + ", ".join(unknown))
 
     quote = (_env("ATLAS_QUOTE_CURRENCY", "EUR") or "EUR").upper()
     settings = Settings(
@@ -241,7 +279,9 @@ def load_settings(env_file: str | None = ".env") -> Settings:
         market_reference=normalize_symbol(_env("ATLAS_MARKET_REFERENCE", "BTC/EUR") or "BTC", quote),
         min_score=_float("ATLAS_MIN_SCORE", 65.0),
         min_reward_risk=_float("ATLAS_MIN_REWARD_RISK", 1.8),
-        strategies=tuple(_list("ATLAS_STRATEGIES", ["trend_pullback", "breakout"])),
+        strategies=tuple(_list("ATLAS_STRATEGIES", ["trend_following", "trend_pullback", "breakout", "mean_reversion", "volatility_squeeze"])),
+        require_validation=_bool("ATLAS_REQUIRE_VALIDATION", True),
+        shadow_strategies=_bool("ATLAS_SHADOW_STRATEGIES", True),
         risk_per_trade_pct=_float("ATLAS_RISK_PER_TRADE_PCT", 1.0),
         max_position_pct=_float("ATLAS_MAX_POSITION_PCT", 50.0),
         max_exposure_pct=_float("ATLAS_MAX_EXPOSURE_PCT", 80.0),
@@ -261,6 +301,8 @@ def load_settings(env_file: str | None = ".env") -> Settings:
         time_stop_bars=_int("ATLAS_TIME_STOP_BARS", 48),
         cycle_interval_seconds=_int("ATLAS_CYCLE_INTERVAL_SECONDS", 300),
         daily_report_hour_utc=_int("ATLAS_DAILY_REPORT_HOUR_UTC", 20),
+        weekly_report_weekday=_int("ATLAS_WEEKLY_REPORT_WEEKDAY", 6),
+        backup_keep=_int("ATLAS_BACKUP_KEEP", 14),
         telegram_token=_env("TELEGRAM_TOKEN"),
         telegram_chat_id=_env("TELEGRAM_CHAT_ID"),
         telegram_allowed_users=_int_set("TELEGRAM_ALLOWED_USERS"),

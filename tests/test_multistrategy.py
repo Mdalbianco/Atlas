@@ -94,8 +94,9 @@ def test_validation_gate(tmp_path):
     strategies = build_strategies(["trend_pullback", "breakout"])
     active, shadow = split_active_shadow(strategies, True, path)
     assert active == [] and len(shadow) == 2   # nessun file → nessuna strategia attiva
-    path.write_text(json.dumps({"strategies": {"breakout@1.0.0": {"status": "validata"}, "trend_pullback@0.9.0": {"status": "validata"}}}))
-    active, shadow = split_active_shadow(strategies, True, path)
+    ok = {"status": "validata", "timeframe": "1h", "paper_evidence": {"passed": True}}
+    path.write_text(json.dumps({"strategies": {"breakout@1.0.0": ok, "trend_pullback@0.9.0": ok}}))
+    active, shadow = split_active_shadow(strategies, True, path, "1h")
     assert [s.name for s in active] == ["breakout"]          # la versione deve coincidere esattamente
     assert status_of(strategies[0], path).status == "non_validata"
     assert split_active_shadow(strategies, False, path) == (strategies, [])
@@ -177,3 +178,76 @@ def test_validation_runner_end_to_end_on_synthetic(tmp_path):
     assert entry["status"] == r["status"] and "oos" in entry
     with pytest.raises(ValueError):
         validate_all(data, BacktestConfig(), ["trend_pullback"], grids={"trend_pullback": {"inesistente": [1.0]}})
+
+
+def test_validation_is_bound_to_timeframe(tmp_path):
+    path = tmp_path / "v.json"
+    s = build_strategies(["breakout"])
+    path.write_text(json.dumps({"strategies": {"breakout@1.0.0": {"status": "validata", "timeframe": "4h", "paper_evidence": {"passed": True}}}}))
+    assert split_active_shadow(s, True, path, timeframe="4h")[0] == s
+    assert split_active_shadow(s, True, path, timeframe="1h")[0] == []
+    assert "timeframe 4h" in status_of(s[0], path, "1h").reason
+
+
+def test_shadow_books_keep_capital_trades_and_stats_separate(settings):
+    from atlas.app import Atlas
+    from atlas.data.sources import SyntheticMarket
+    from atlas.performance.analyzer import compare_books
+    from atlas.telegram.notifier import NullNotifier
+    from tests.conftest import Clock
+    from tests.test_cycle import AlwaysLong
+
+    m = SyntheticMarket({"BTC/EUR": 60000.0, "ETH/EUR": 3000.0}, bars=1300, seed=3)
+    ts = m.data["BTC/EUR"].timestamp.tolist()
+    clock = Clock(0)
+    s = replace(settings, watchlist=("BTC/EUR", "ETH/EUR"), require_validation=True, shadow_strategies=True,
+                strategies=("trend_pullback", "breakout"), min_score=0.0)
+    notifier = NullNotifier()
+    a = Atlas(s, source=m, notifier=notifier, clock=clock)
+    busy = next(b for b in a.cycle.shadow_books if b.name == "trend_pullback")
+    idle = next(b for b in a.cycle.shadow_books if b.name == "breakout")
+    busy.engine.strategies = [AlwaysLong()]
+    busy.strategies.clear(); busy.strategies["always_long"] = AlwaysLong()
+    idle.engine.strategies = []                     # questo book non deve mai operare
+    for i in range(1000, 1080):
+        m.now_ms = ts[i]; clock.ms = ts[i] + 60_000
+        assert a.cycle.run_once().ok
+    assert busy.db.query("SELECT COUNT(*) c FROM positions")[0]["c"] >= 2
+    assert busy.db.query("SELECT COUNT(*) c FROM orders")[0]["c"] >= 2
+    assert busy.account.cash != 100.0
+    for other in (idle.db, a.db):
+        assert other.query("SELECT COUNT(*) c FROM positions")[0]["c"] == 0
+        assert other.query("SELECT COUNT(*) c FROM orders")[0]["c"] == 0
+        assert float(other.get_state("cash")) == 100.0
+    rows = {r["book"]: r for r in compare_books(a.db, {b.name: b.db for b in a.cycle.shadow_books})}
+    assert rows["principale"]["trades"] == 0 and rows["breakout"]["trades"] == 0
+    assert rows["trend_pullback"]["trades"] + rows["trend_pullback"]["open"] >= 2
+    assert not any("aperta" in t or "chiusa" in t for t in notifier.sent)   # i book ombra non notificano
+    # dopo un riavvio i book ombra riprendono il proprio stato
+    cash = busy.account.cash
+    a.cycle.close(); a.db.close()
+    b = Atlas(s, source=m, notifier=notifier, clock=clock)
+    assert next(x for x in b.cycle.shadow_books if x.name == "trend_pullback").account.cash == pytest.approx(cash)
+
+
+def test_backtest_alone_never_promotes(tmp_path):
+    path = tmp_path / "v.json"
+    s = build_strategies(["breakout"])
+    path.write_text(json.dumps({"strategies": {"breakout@1.0.0": {"status": "validata", "timeframe": "1h"}}}))
+    st = status_of(s[0], path, "1h")
+    assert st.status == "in_osservazione" and split_active_shadow(s, True, path, "1h")[0] == []
+    path.write_text(json.dumps({"strategies": {"breakout@1.0.0": {"status": "validata", "timeframe": "1h", "paper_evidence": {"passed": True}}}}))
+    assert split_active_shadow(s, True, path, "1h")[0] == s
+
+
+def test_paper_evidence_from_shadow_db(tmp_path):
+    from atlas.storage.db import Database
+    from atlas.strategy.validation import paper_evidence
+    from tests.test_performance import add_trade
+
+    db = Database(tmp_path / "s.db")
+    db.record_equity(100, 100, 0, 0)
+    for i in range(5):
+        add_trade(db, i, 0.4)
+    ev = paper_evidence(db)
+    assert not ev["passed"] and any("operazioni chiuse" in r for r in ev["reasons"]) and any("giorni" in r for r in ev["reasons"])

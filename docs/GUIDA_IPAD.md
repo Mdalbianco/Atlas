@@ -2,6 +2,9 @@
 
 Tutto si fa dal browser (Safari) e dall'app Telegram. Non serve un computer.
 
+> **Aggiornamento del Codespace e passaggio al server**: la procedura blocco per blocco è in
+> [MIGRAZIONE.md](MIGRAZIONE.md). Questa pagina resta il riferimento generale.
+
 ## A. Provare e sviluppare in GitHub Codespaces
 
 1. Apri il repository su github.com → pulsante **Code** → **Codespaces** → apri il codespace sul branch
@@ -11,6 +14,7 @@ Tutto si fa dal browser (Safari) e dall'app Telegram. Non serve un computer.
    git pull
    pip install -r requirements-dev.txt
    python -m pytest              # deve finire con "passed"
+   python -m atlas doctor        # verifica completa: paper, ordini bloccati, Kraken, Telegram, strategie
    python -m atlas cycle         # un ciclo con dati reali Kraken (paper)
    python -m atlas run           # bot Telegram + scheduler (si ferma se chiudi il codespace)
    ```
@@ -52,7 +56,8 @@ Scelta motivata in [HOSTING.md](HOSTING.md). Tempo: ~20 minuti.
    (gli stessi valori del `.env` di Codespaces). Salva con Ctrl+O, Invio, Ctrl+X.
 6. **Avvia**: `bash ~/atlas/deploy/install.sh` → deve terminare con "ATLAS è attivo".
 7. **Ferma la copia in Codespaces** se era in esecuzione: due bot con lo stesso token si contendono
-   i messaggi (Telegram restituisce errore 409).
+   i messaggi (Telegram restituisce errore 409; ATLAS te lo segnala con un messaggio al massimo una volta all'ora).
+   Per portare sul server anche lo storico dei portafogli segui [MIGRAZIONE.md](MIGRAZIONE.md), parte C.
 8. Su Telegram invia `/status`: deve rispondere il server.
 
 Da quel momento ATLAS gira anche con l'iPad spento, si riavvia da solo dopo crash o riavvii della VM
@@ -66,6 +71,7 @@ e salva un backup del database ogni giorno.
 | Stato | `docker compose -f ~/atlas/deploy/docker-compose.yml exec atlas python -m atlas status` |
 | Aggiornare (con ritorno automatico se qualcosa va storto) | `bash ~/atlas/deploy/update.sh` |
 | Backup immediato verificato | `docker compose -f ~/atlas/deploy/docker-compose.yml exec atlas python -m atlas backup` |
+| Diagnosi completa | `docker compose -f ~/atlas/deploy/docker-compose.yml exec atlas python -m atlas doctor` |
 | Fermare | `docker compose -f ~/atlas/deploy/docker-compose.yml down` (i dati restano nel volume) |
 | Ripartire da zero con 100 € virtuali | fermare, poi `docker volume rm deploy_atlas-data` e riavviare (cancella lo storico!) |
 
@@ -84,6 +90,7 @@ Uso quotidiano: `/status`, `/posizioni`, `/performance`, `/mercato`, `/analisi B
 | `/segnali` | ultime decisioni del portafoglio principale |
 | `/mercato` | panoramica della watchlist |
 | `/strategie` | strategie, stato di validazione, principale/ombra |
+| `/diagnosi` | perché ogni strategia opera o non opera (motivi di rifiuto più frequenti, esiti delle uscite) |
 | `/posizioni`, `/operazioni` | posizioni aperte e chiuse |
 | `/performance` | statistiche del portafoglio principale |
 | `/report` | stato + performance + confronto portafogli + proposte |

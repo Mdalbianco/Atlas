@@ -12,6 +12,7 @@ provider prima di creare risorse**. Nessuna risorsa è stata creata da Claude.
 | CPU | ~2% di un core in media (picchi brevi a ogni ciclo) |
 | Disco | < 1 MB di database dopo i primi cicli; immagine Docker ~560 MB |
 | Rete | solo connessioni in uscita verso api.kraken.com e api.telegram.org; nessuna porta in ingresso |
+| Traffico (misurato, v1.1.1) | ~4 richieste e ~1 KB per ciclo; le candele si riscaricano solo alla chiusura di una nuova candela (~400 KB/ora). Stima mensile: ingresso ~0,3 GB, uscita ben sotto 0,1 GB |
 
 Basta quindi la più piccola macchina virtuale disponibile. Serve però un **processo sempre attivo**
 con **disco persistente**: le piattaforme che "addormentano" i servizi gratuiti non vanno bene.
@@ -26,6 +27,28 @@ con **disco persistente**: le piattaforme che "addormentano" i servizi gratuiti 
 | **Fly.io** | ~2–5 $/mese + volume | container nativi | fatturazione a consumo meno prevedibile |
 | Render / Railway | da ~5–7 $/mese | PaaS semplici | worker sempre attivi e volumi a pagamento |
 | GitHub Codespaces | — | ottimo per sviluppo | **si sospende per inattività**: non adatto al 24/7 |
+
+## Google Cloud e2-micro: condizioni dalle pagine ufficiali (verificate il 31/10/2026)
+
+Fonti: [cloud.google.com/free](https://cloud.google.com/free) e
+[Free Google Cloud features (documentazione)](https://docs.cloud.google.com/free/docs/free-cloud-features).
+
+- **1 VM e2-micro non preemptible al mese**, solo nelle regioni **us-west1 (Oregon), us-central1 (Iowa),
+  us-east1 (South Carolina)**. Il limite è in ore: gratis fino a un numero di ore pari alle ore del mese,
+  sommando tutte le e2-micro → **una sola VM**.
+- **30 GB-mese di disco permanente *standard*** (non "balanced" né SSD, che si pagano).
+- **1 GB al mese di traffico in uscita** dal Nord America (esclusi Cina e Australia). ATLAS ne usa
+  molto meno (vedi misura sopra); il traffico in ingresso (dati scaricati) non è conteggiato in questo limite.
+- Niente sconti per uso prolungato sulla VM gratuita; GPU/TPU escluse.
+- Google precisa che il limite gratuito non scade ma **può cambiare**: l'avviso di budget serve a questo.
+- Serve un account di fatturazione con carta. Possibili costi fuori dal gratuito: indirizzo IP esterno
+  (verifica la voce "External IP" nel listino al momento della creazione), dischi non standard, snapshot,
+  una seconda VM, regioni non incluse. Imposta un **budget di 1 € con avviso** prima di creare la VM.
+
+Valutazione per ATLAS: **adatta**. 1 GB di RAM basta (ATLAS ~150 MB; con 1 GB di swap anche la build
+dell'immagine Docker è sicura), il traffico è entro i limiti, non serve alcuna porta aperta.
+L'unico punto da verificare tu al momento della creazione è l'eventuale costo dell'IP esterno indicato
+dal riepilogo prezzi della console, che compare prima di confermare.
 
 ## Raccomandazione
 
@@ -48,6 +71,9 @@ tutte le opzioni basate su VM (x86_64 e ARM64).
 - Immagine Docker costruita ed eseguita in questo ambiente: utente non root, filesystem in sola lettura,
   health check OK, dati persistenti dopo la ricreazione del container, **riavvio automatico dopo un crash
   simulato** (`RestartCount=1`, di nuovo sano), arresto ordinato su SIGTERM in ~4 s.
+- `docker compose` reale (v1.1.1): avvio, utente non root, sola lettura, `no-new-privileges`,
+  `stop_grace_period` 90 s, arresto ordinato con evento `shutdown`, persistenza dopo stop/start,
+  `restore` di un archivio esportato dentro il container, `doctor` nel container.
 - `install.sh`, `update.sh` e `backup-offsite.sh`: solo controllo di sintassi (`bash -n`), **non**
   eseguiti su un server reale (nessun accesso a un account di hosting).
 
@@ -56,8 +82,10 @@ tutte le opzioni basate su VM (x86_64 e ARM64).
 - Oracle: [Always Free Resources (documentazione ufficiale)](https://docs.oracle.com/en-us/iaas/Content/FreeTier/resourceref.htm),
   [riduzione A1 e recupero VM inattive](https://www.itechguides.com/oracle-cloud-giving-away-ampere-arm-a1-instances-always-free-the-2026-limits-explained/),
   [analisi dei limiti 2026](https://www.mrplanb.com/datacenter/free-vps-tiers)
-- Google Cloud: [guida al free tier 2026](https://agentdeals.dev/gcp-free-tier-2026),
-  [riepilogo Compute Engine free tier](https://agentdeals.dev/vendor/google-compute-engine)
+- Google Cloud (ufficiali): [Free Tier](https://cloud.google.com/free),
+  [Free Google Cloud features](https://docs.cloud.google.com/free/docs/free-cloud-features),
+  [Network pricing](https://cloud.google.com/vpc/network-pricing);
+  (terze parti) [guida al free tier 2026](https://agentdeals.dev/gcp-free-tier-2026)
 - Hetzner: [prezzi dopo gli aumenti 2026](https://www.bitdoze.com/hetzner-cloud-cost-optimized-plans/),
   [tabella prezzi 2026](https://vpsdex.com/en/activity/hetzner-cloud-pricing-2026/),
   [prezzi correnti](https://cloudtally.eu/hetzner-cloud-prices)

@@ -91,7 +91,7 @@ class TradingCycle:
         self.risk = RiskManager(self.limits, self.costs)
         self.scorer = ScoreEngine(self.costs, settings.min_reward_risk)
         candidates = build_strategies(settings.strategies, costs=self.costs)
-        active, shadow = split_active_shadow(candidates, settings.require_validation)
+        active, shadow = split_active_shadow(candidates, settings.require_validation, timeframe=settings.timeframe)
         self.candidates = candidates
         self.strategies = {st.name: st for st in active}
         self.shadow_names = [st.name for st in shadow]

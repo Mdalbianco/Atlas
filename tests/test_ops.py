@@ -83,3 +83,82 @@ def test_degradation_detected(tmp_path):
         add_trade(db, i, -0.6)
     alerts = degradation_alerts(db)
     assert alerts and alerts[0]["kind"] == "degrado" and "trend_pullback" in alerts[0]["title"]
+
+
+def test_export_restore_roundtrip(tmp_path):
+    import tarfile
+
+    from atlas.ops import export_state, restore_state
+
+    src, dst = tmp_path / "codespace", tmp_path / "server"
+    db = Database(src / "atlas.db")
+    db.set_state("cash", 77.0)
+    add_trade(db, 1, 0.5)
+    Database(src / "shadow" / "breakout.db").set_state("cash", 91.0)
+    (src / ".env").write_text("TELEGRAM_TOKEN=segreto")
+    m = export_state(src, tmp_path / "x.tar.gz")
+    assert m["databases"]["atlas.db"]["positions"] == 1
+    with tarfile.open(tmp_path / "x.tar.gz") as t:
+        assert ".env" not in t.getnames() and all(".env" not in n for n in t.getnames())
+    Database(dst / "atlas.db").set_state("cash", 1.0)          # dati già presenti sul server
+    restore_state(dst, tmp_path / "x.tar.gz")
+    assert Database(dst / "atlas.db").get_state("cash") == 77.0
+    assert Database(dst / "shadow" / "breakout.db").get_state("cash") == 91.0
+    backups = list(dst.glob("pre-restore-*/atlas.db"))
+    assert backups and Database(backups[0]).get_state("cash") == 1.0   # nulla perso
+
+
+def test_restore_refused_while_running(tmp_path):
+    from atlas.ops import export_state, restore_state
+
+    Database(tmp_path / "a" / "atlas.db").set_state("cash", 5.0)
+    export_state(tmp_path / "a", tmp_path / "x.tar.gz")
+    with SingleInstanceLock(tmp_path / "b"):
+        with pytest.raises(AlreadyRunning):
+            # il lock è per processo: simuliamo un'istanza attiva in un altro processo
+            q = mp.Queue()
+            p = mp.Process(target=_restore_in_child, args=(tmp_path / "b", tmp_path / "x.tar.gz", q))
+            p.start(); p.join(20)
+            raise q.get(timeout=5)
+
+
+def _restore_in_child(data_dir, archive, q):
+    from atlas.ops import restore_state
+
+    try:
+        restore_state(data_dir, archive)
+        q.put(RuntimeError("ripristino eseguito con ATLAS attivo"))
+    except AlreadyRunning as exc:
+        q.put(exc)
+
+
+def test_restore_rejects_malicious_archive(tmp_path):
+    import io
+    import json
+    import tarfile
+
+    from atlas.ops import restore_state
+
+    bad = tmp_path / "bad.tar.gz"
+    with tarfile.open(bad, "w:gz") as t:
+        for name, data in (("manifest.json", json.dumps({"databases": {}}).encode()), ("../evil.db", b"x")):
+            info = tarfile.TarInfo(name); info.size = len(data); t.addfile(info, io.BytesIO(data))
+    with pytest.raises(ValueError):
+        restore_state(tmp_path / "srv", bad)
+
+
+def test_doctor_offline_and_with_market(settings):
+    from atlas.data.sources import SyntheticMarket
+    from atlas.doctor import render, run_checks
+
+    m = SyntheticMarket({"BTC/EUR": 60000.0}, bars=800, seed=2)
+    last = int(m.data["BTC/EUR"].timestamp.iloc[-1])
+    s = replace(settings, watchlist=("BTC/EUR",), telegram_token="123456:" + "S" * 35, telegram_chat_id="1", telegram_allowed_users=frozenset({1}))
+    checks = run_checks(s, network=False)
+    text, code = render(checks)
+    assert "PAPER TRADING" in text and "bloccati" in text
+    assert "S" * 35 not in text                         # il token non compare mai
+    assert code == 0
+    import atlas.data.market_data as md
+    checks = run_checks(s, network=True, source=m)
+    assert any(c.name == "Kraken BTC/EUR" and c.ok for c in checks) or any(c.name == "Kraken" for c in checks)

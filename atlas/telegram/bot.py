@@ -51,6 +51,7 @@ class CommandRouter:
             "segnali": lambda args, adm: a.text_signals(),
             "mercato": lambda args, adm: a.text_market(),
             "strategie": lambda args, adm: a.text_strategies(),
+            "diagnosi": lambda args, adm: a.text_diagnostics(),
             "posizioni": lambda args, adm: a.text_positions(),
             "operazioni": lambda args, adm: a.text_trades(),
             "performance": lambda args, adm: a.text_performance(),
@@ -85,6 +86,36 @@ class CommandRouter:
             return f"❌ Non è stato possibile completare il comando ({type(exc).__name__}). Riprova più tardi."
 
 
+class ConflictMonitor:
+    """Telegram risponde 409 (Conflict) quando due processi usano lo stesso token.
+
+    Succede se ATLAS gira sia nel Codespace sia sul server. Si registra l'evento e si
+    avvisa l'utente al massimo una volta all'ora (niente raffiche di messaggi).
+    """
+
+    def __init__(self, atlas: Atlas, every_seconds: int = 3600, clock=None) -> None:
+        import time
+
+        self.atlas = atlas
+        self.every = every_seconds
+        self.clock = clock or time.time
+        self._last: float | None = None
+
+    def report(self) -> bool:
+        now = self.clock()
+        if self._last is not None and now - self._last < self.every:
+            return False
+        self._last = now
+        self.atlas.db.log_event("telegram_conflict", "un'altra istanza usa lo stesso token Telegram", level="CRITICAL")
+        log.critical("conflitto Telegram: un'altra istanza usa lo stesso token")
+        self.atlas.notifier.send(
+            "⚠️ ATLAS — Due istanze attive con lo stesso bot Telegram\n\n"
+            "Telegram segnala un conflitto: ATLAS sta girando in due posti (es. Codespace e server).\n"
+            "Ferma quella che non deve restare attiva (nel Codespace: Ctrl+C nel terminale di ATLAS)."
+        )
+        return True
+
+
 def build_application(atlas: Atlas, on_startup: Callable[[], Awaitable[None]] | None = None):
     from telegram import Update
     from telegram.ext import Application, CommandHandler, ContextTypes
@@ -105,8 +136,19 @@ def build_application(atlas: Atlas, on_startup: Callable[[], Awaitable[None]] | 
         if on_startup:
             await on_startup()
 
+    conflict = ConflictMonitor(atlas)
+
+    async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        from telegram.error import Conflict
+
+        if isinstance(context.error, Conflict):
+            await asyncio.to_thread(conflict.report)
+        else:
+            log.warning("errore Telegram", extra={"data": {"error": type(context.error).__name__}})
+
     app = Application.builder().token(s.telegram_token).post_init(post_init).build()
     app.add_handler(CommandHandler(list(router.commands), dispatch))
+    app.add_error_handler(on_error)
     app.bot_data["router"] = router
     return app
 

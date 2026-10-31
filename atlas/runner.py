@@ -45,7 +45,7 @@ class Scheduler:
         try:
             props = generate_proposals(self.atlas.db)
             new = [p for p in props if p.get("new")]
-            text = "📊 ATLAS — Report settimanale\n\n" + self.atlas.text_comparison()
+            text = "📊 ATLAS — Report settimanale\n\n" + self.atlas.text_comparison() + "\n\n" + self.atlas.text_diagnostics(7)
             if new:
                 text += "\n\n💡 Nuove proposte (da validare con backtest, mai applicate automaticamente):\n" + "\n".join(f"• {p['title']}" for p in new)
             self.atlas.notifier.send(text)

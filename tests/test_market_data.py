@@ -95,3 +95,31 @@ def test_replay_never_reveals_future_prices():
     assert rows[-1][1] == rows[-1][2] == rows[-1][3] == rows[-1][4] == df.open.iloc[200]
     assert m.fetch_ticker("BTC/EUR")["last"] == df.open.iloc[200]
     assert rows[-2][4] == df.close.iloc[199]
+
+
+def test_analyzer_refetches_only_when_a_new_candle_closes():
+    from atlas.engine.analyzer import Analyzer
+
+    m = SyntheticMarket({"BTC/EUR": 60000.0}, bars=1200, seed=4)
+    ts = m.data["BTC/EUR"].timestamp.tolist()
+    clock = {"ms": 0}
+    an = Analyzer(MarketDataService(m, clock=lambda: clock["ms"]), "1h", "4h", 720, 4.0)
+    m.now_ms = ts[1000]
+    for minute in (1, 6, 30, 59):                      # 4 cicli nella stessa ora
+        clock["ms"] = ts[1000] + minute * 60_000
+        snap, _, _ = an.snapshot("BTC/EUR", "1h")
+    assert an.fetches == 1 and snap.timestamp == ts[999]
+    m.now_ms = ts[1001]; clock["ms"] = ts[1001] + 60_000  # nuova candela chiusa
+    snap, _, _ = an.snapshot("BTC/EUR", "1h")
+    assert an.fetches == 2 and snap.timestamp == ts[1000]
+
+
+def test_repository_research_data_is_valid():
+    """I dati reali salvati nel repository sono leggibili, completi e coerenti."""
+    from pathlib import Path
+
+    files = sorted(Path(__file__).parents[1].glob("research/data/*_EUR_1h_*.csv.gz"))
+    assert len(files) == 3
+    for f in files:
+        df, rep = clean_and_validate(load_csv(f), "1h")
+        assert len(df) == 8755 and rep.gaps <= 1

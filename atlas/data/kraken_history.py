@@ -88,6 +88,7 @@ def download_trades_ohlcv(
     fetch: Callable[[dict], dict] | None = None,
     now: Callable[[], float] = time.time,
     sleep: Callable[[float], None] = time.sleep,
+    end: float | None = None,
 ) -> dict:
     """Scarica (o riprende) lo storico e scrive un CSV ATLAS (timestamp ms, OHLCV)."""
     out = Path(out)
@@ -102,14 +103,15 @@ def download_trades_ohlcv(
         def fetch(params: dict) -> dict:
             return session.get(TRADES_URL, params=params, timeout=30).json()
 
-    end_ns = int(now() * 1e9)
+    end_s = end if end is not None else now()
+    end_ns = int(end_s * 1e9)
     if ckpt_path.exists():
         ck = json.loads(ckpt_path.read_text())
         cursor, end_ns = int(ck["cursor"]), int(ck["end_ns"])
         agg = TradeAggregator(timeframe, Bar(**ck["current"]) if ck.get("current") else None)
         mode = "a"
     else:
-        cursor = int((now() - days * 86400) * 1e9)
+        cursor = int((end_s - days * 86400) * 1e9)
         agg = TradeAggregator(timeframe)
         mode = "w"
 

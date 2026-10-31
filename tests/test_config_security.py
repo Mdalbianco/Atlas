@@ -130,4 +130,8 @@ def test_no_execution_path_to_live_broker():
 
     root = Path(atlas.__file__).parent
     users = [p for p in root.rglob("*.py") if "LiveBroker" in p.read_text(encoding="utf-8") and p.name != "live.py"]
-    assert users == []
+    # unica eccezione ammessa: doctor.py, che istanzia LiveBroker SOLO per verificare che si rifiuti
+    assert [p.name for p in users] in ([], ["doctor.py"])
+    if users:
+        text = users[0].read_text(encoding="utf-8")
+        assert "except LiveTradingDisabled" in text and text.count("LiveBroker()") == 1

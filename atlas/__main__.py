@@ -82,9 +82,13 @@ def cmd_healthcheck(args) -> int:
         print("nessun heartbeat")
         return 1
     age = (datetime.now(timezone.utc) - datetime.fromisoformat(hb)).total_seconds()
-    ok = age < 3 * s.cycle_interval_seconds + 120
-    print(f"heartbeat {age:.0f}s fa — {'OK' if ok else 'NON AGGIORNATO'}; halted={db.get_state('halted', False)}")
-    return 0 if ok else 1
+    alive = age < 3 * s.cycle_interval_seconds + 120
+    errors = int(db.get_state("consecutive_errors", 0) or 0)
+    max_errors = max(12, 3600 // max(s.cycle_interval_seconds, 1))   # circa un'ora di cicli falliti
+    working = errors < max_errors
+    state = "OK" if alive and working else ("NON AGGIORNATO" if not alive else f"DEGRADATO ({errors} cicli consecutivi falliti)")
+    print(f"heartbeat {age:.0f}s fa — {state}; halted={db.get_state('halted', False)}")
+    return 0 if alive and working else 1
 
 
 def cmd_download(args) -> int:
@@ -104,7 +108,10 @@ def cmd_download(args) -> int:
 def cmd_history(args) -> int:
     from atlas.data.kraken_history import download_trades_ohlcv
 
-    res = download_trades_ohlcv(args.symbol.upper(), args.out, days=args.days, timeframe=args.timeframe, max_requests=args.max_requests)
+    end = None
+    if args.end:
+        end = datetime.fromisoformat(args.end).replace(tzinfo=timezone.utc).timestamp()
+    res = download_trades_ohlcv(args.symbol.upper(), args.out, days=args.days, timeframe=args.timeframe, max_requests=args.max_requests, end=end)
     state = "completato" if res["finished"] else "interrotto (rilancia lo stesso comando per riprendere)"
     print(f"{res['symbol']}: {res['rows']} candele scritte in {res['out']} con {res['requests']} richieste — {state}")
     return 0
@@ -130,16 +137,34 @@ def _backtest_config(s, data):
     )
 
 
+def _load_research_data(s, items, timeframe: str) -> dict:
+    """Carica i CSV (anche più file per coppia, es. anni diversi) e li porta al timeframe richiesto."""
+    import pandas as pd
+
+    from atlas.config import normalize_symbol
+    from atlas.data.sources import load_csv, resample
+
+    parts: dict[str, list] = {}
+    for item in items:
+        sym, path = item.split("=", 1) if "=" in item else (symbol_from_filename(item), item)
+        parts.setdefault(normalize_symbol(sym, s.quote_currency), []).append(load_csv(path))
+    data = {}
+    for sym, frames in parts.items():
+        df = pd.concat(frames).drop_duplicates("timestamp").sort_values("timestamp").reset_index(drop=True)
+        data[sym] = df if timeframe == "1h" else resample(df, timeframe)
+    return data
+
+
 def cmd_validate(args) -> int:
+    from dataclasses import replace
+
     from atlas.backtest.validation_runner import markdown, validate_all, write_status
-    from atlas.config import load_settings, normalize_symbol
-    from atlas.data.sources import load_csv
+    from atlas.config import load_settings
 
     s = load_settings()
-    data = {}
-    for item in args.csv:
-        sym, path = item.split("=", 1) if "=" in item else (symbol_from_filename(item), item)
-        data[normalize_symbol(sym, s.quote_currency)] = load_csv(path)
+    if args.timeframe:
+        s = replace(s, timeframe=args.timeframe, higher_timeframe=args.higher_timeframe or s.higher_timeframe)
+    data = _load_research_data(s, args.csv, s.timeframe)
     names = args.strategies.split(",") if args.strategies else list(s.strategies)
     grids: dict = {}
     for spec in args.grid or []:          # es. trend_pullback.rsi_max=60,65
@@ -149,7 +174,7 @@ def cmd_validate(args) -> int:
     if grids and args.write_status:
         print("Le griglie sperimentali non possono aggiornare il file di stato: prima si crea una nuova versione della strategia.")
         return 2
-    report = validate_all(data, _backtest_config(s, data), names, args.train_bars, args.test_bars, source=args.source, grids=grids)
+    report = validate_all(data, _backtest_config(s, data), names, args.train_bars, args.test_bars, warmup_bars=args.warmup_bars, source=args.source, grids=grids)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.with_suffix(".json").write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
@@ -247,13 +272,48 @@ def cmd_backup(args) -> int:
     return 0 if files else 1
 
 
+def cmd_doctor(args) -> int:
+    from atlas.config import load_settings
+    from atlas.doctor import render, run_checks
+    from atlas.logging_setup import register_secret
+
+    s = load_settings()
+    for secret in (s.telegram_token, s.kraken_api_key, s.kraken_api_secret):
+        register_secret(secret)
+    text, code = render(run_checks(s, network=not args.offline))
+    print(text)
+    return code
+
+
+def cmd_export(args) -> int:
+    from atlas.config import load_settings
+    from atlas.ops import export_state
+
+    s = load_settings()
+    m = export_state(s.data_dir, args.out)
+    print(f"Archivio creato: {args.out} (ATLAS {m['atlas_version']}, nessun segreto incluso)")
+    for name, info in m["databases"].items():
+        print(f"  {name}: {info['positions']} posizioni, {info['decisions']} decisioni")
+    return 0
+
+
+def cmd_restore(args) -> int:
+    from atlas.config import load_settings
+    from atlas.ops import restore_state
+
+    s = load_settings()
+    m = restore_state(s.data_dir, args.archive)
+    print(f"Ripristinati {len(m['databases'])} database (esportati il {m['exported_at'][:19]} da ATLAS {m['atlas_version']}).")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     from atlas.config import ConfigError
     from atlas.ops import AlreadyRunning
 
     try:
         return _main(argv)
-    except (ConfigError, AlreadyRunning) as exc:   # arresto sicuro, messaggio leggibile
+    except (ConfigError, AlreadyRunning, FileNotFoundError, ValueError) as exc:   # arresto sicuro, messaggio leggibile
         print(f"ATLAS non avviato: {exc}", file=sys.stderr)
         return 2
 
@@ -269,6 +329,15 @@ def _main(argv: list[str] | None = None) -> int:
     sub.add_parser("status", help="stato e performance").set_defaults(func=cmd_status)
     sub.add_parser("healthcheck", help="verifica heartbeat").set_defaults(func=cmd_healthcheck)
     sub.add_parser("backup", help="backup verificato dei database").set_defaults(func=cmd_backup)
+    p = sub.add_parser("doctor", help="diagnosi completa dell'installazione (senza mostrare segreti)")
+    p.add_argument("--offline", action="store_true", help="salta i controlli di rete")
+    p.set_defaults(func=cmd_doctor)
+    p = sub.add_parser("export", help="archivio dei portafogli per il trasferimento (senza segreti)")
+    p.add_argument("--out", default="atlas-export.tar.gz")
+    p.set_defaults(func=cmd_export)
+    p = sub.add_parser("restore", help="ripristina un archivio creato con export (ATLAS deve essere fermo)")
+    p.add_argument("archive")
+    p.set_defaults(func=cmd_restore)
     p = sub.add_parser("download", help="scarica candele da Kraken in CSV")
     p.add_argument("symbol")
     p.add_argument("--timeframe", default="1h")
@@ -281,6 +350,7 @@ def _main(argv: list[str] | None = None) -> int:
     p.add_argument("--timeframe", default="1h")
     p.add_argument("--out", required=True)
     p.add_argument("--max-requests", type=int, default=None)
+    p.add_argument("--end", help="data di fine (AAAA-MM-GG, UTC); default: adesso. --days conta all'indietro da qui")
     p.set_defaults(func=cmd_history)
     p = sub.add_parser("validate", help="walk-forward per strategia su dati reali e report di promozione")
     p.add_argument("--csv", nargs="+", required=True)
@@ -291,6 +361,9 @@ def _main(argv: list[str] | None = None) -> int:
     p.add_argument("--write-status", action="store_true", help="aggiorna atlas/strategy/validation_status.json")
     p.add_argument("--source", default="file CSV forniti dall'utente", help="descrizione della provenienza dei dati")
     p.add_argument("--grid", nargs="*", help="esperimento: griglia alternativa, es. trend_pullback.rsi_max=60,65")
+    p.add_argument("--timeframe", help="timeframe operativo (es. 4h): i CSV 1h vengono aggregati")
+    p.add_argument("--higher-timeframe", help="timeframe di conferma (es. 1d)")
+    p.add_argument("--warmup-bars", type=int, default=900, help="candele di riscaldamento degli indicatori")
     p.set_defaults(func=cmd_validate)
     p = sub.add_parser("backtest", help="backtest / validazione")
     p.add_argument("--csv", nargs="*", help="file CSV (nome tipo BTC_EUR_1h.csv) oppure SIMBOLO=percorso")

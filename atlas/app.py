@@ -59,6 +59,7 @@ class Atlas:
                 "/segnali – ultime decisioni prese",
                 "/mercato – panoramica della watchlist",
                 "/strategie – strategie e versioni",
+                "/diagnosi – perché ogni strategia opera o non opera",
                 "",
                 "📊 Trading simulato",
                 "/posizioni – posizioni aperte",
@@ -187,9 +188,9 @@ class Atlas:
         from atlas.strategy.validation import status_of
 
         lines = ["🧠 Strategie", ""]
-        icons = {"validata": "✅", "respinta": "❌", "non_validata": "⏳"}
+        icons = {"validata": "✅", "respinta": "❌", "non_validata": "⏳", "in_osservazione": "🔭"}
         for st in self.cycle.candidates:
-            vs = status_of(st)
+            vs = status_of(st, timeframe=self.settings.timeframe)
             where = "portafoglio principale" if st.name in self.cycle.strategies else "solo portafoglio ombra (isolato)"
             lines.append(f"{icons.get(vs.status, '•')} {st.id} — {vs.status}, {where}")
             lines.append(f"   {STRATEGIES[st.name].description}")
@@ -197,6 +198,31 @@ class Atlas:
                 lines.append(f"   Validazione: {vs.reason}")
         lines += ["", "Regola: entra nel portafoglio principale solo una versione che ha superato il walk-forward su dati reali "
                   "(docs/STRATEGIES_AND_SCORING.md). Le altre raccolgono evidenza in portafogli virtuali separati."]
+        return "\n".join(lines)
+
+    def text_diagnostics(self, days: int = 7) -> str:
+        from datetime import timedelta
+
+        from atlas.performance.analyzer import closed_trades_frame, rejection_stats
+        from atlas.backtest.metrics import group_metrics
+
+        since = (self.cycle.clock() - timedelta(days=days)).isoformat()
+        books = [("PRINCIPALE", self.db)] + [(f"ombra · {b.name}", b.db) for b in self.cycle.shadow_books]
+        lines = [f"🔬 Diagnosi delle strategie (ultimi {days} giorni)", ""]
+        for label, db in books:
+            st = rejection_stats(db, since)
+            if label == "PRINCIPALE" and not self.cycle.strategies:
+                lines.append("PRINCIPALE: nessuna strategia validata, non valuta segnali.")
+                continue
+            lines.append(f"{label}: {st['evaluations']} candele valutate, {st['entries']} ingressi")
+            for reason, n in st["reasons"][:3]:
+                share = n / st["evaluations"] * 100 if st["evaluations"] else 0
+                lines.append(f"   • {reason}: {fmt.num(share, 0)}% delle valutazioni")
+            trades = closed_trades_frame(db)
+            if not trades.empty:
+                ex = group_metrics(trades, "exit_reason")
+                lines.append("   Uscite: " + ", ".join(f"{k} {m['trades']} ({fmt.num(m['expectancy_r'])} R)" for k, m in ex.items()))
+        lines.append("\nPercentuali sul totale delle candele valutate; una valutazione può avere più motivi.")
         return "\n".join(lines)
 
     def text_comparison(self) -> str:

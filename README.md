@@ -1,7 +1,7 @@
 # ATLAS
 
 Sistema algoritmico di **analisi e paper trading** di criptovalute sul mercato spot di **Kraken**,
-controllabile da **Telegram**. Versione 1.1.0.
+controllabile da **Telegram**. Versione 1.1.1.
 
 > ⚠️ ATLAS opera **solo in simulazione** (paper trading). Il trading reale non è implementato e non è
 > attivabile (vedi [docs/LIVE_TRADING_POLICY.md](docs/LIVE_TRADING_POLICY.md)). Nessun rendimento è garantito.
@@ -54,6 +54,8 @@ Per l'esecuzione continua (server, Docker, systemd) vedi [docs/OPERATIONS.md](do
 | `python -m atlas history BTC/EUR --days 365 --out FILE` | storico lungo dai trade pubblici Kraken |
 | `python -m atlas validate --csv FILE...` | validazione walk-forward per strategia e report |
 | `python -m atlas backup` | backup verificato dei database |
+| `python -m atlas doctor` | diagnosi completa dell'installazione |
+| `python -m atlas export` / `restore FILE` | trasferire i portafogli su un altro server |
 
 **Telegram**: `/start` `/help` `/status` `/saldo` `/prezzo` `/watchlist` · `/analisi` `/segnali`
 `/mercato` `/strategie` · `/posizioni` `/operazioni` `/performance` `/report` `/rischio` ·
@@ -83,6 +85,8 @@ Operazione SIMULATA (paper trading): nessun denaro reale è stato usato.
 | [docs/RISK.md](docs/RISK.md) | limiti di rischio e analisi dei costi con 100 € |
 | [docs/BACKTESTING.md](docs/BACKTESTING.md) | backtest, walk-forward, dati reali, stato della validazione |
 | [docs/GUIDA_IPAD.md](docs/GUIDA_IPAD.md) | **guida passo-passo da iPad**: Codespaces, server 24/7, Telegram |
+| [docs/MIGRAZIONE.md](docs/MIGRAZIONE.md) | aggiornare il Codespace e passare al server, blocco per blocco |
+| [docs/RESEARCH_PLAN.md](docs/RESEARCH_PLAN.md) | piano di ricerca su 2–3 anni e timeframe 4h |
 | [docs/HOSTING.md](docs/HOSTING.md) | confronto hosting con costi e limiti verificati |
 | [docs/VALIDATION_REPORT.md](docs/VALIDATION_REPORT.md) | risultati della validazione su dati reali Kraken |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | installazione, deployment, monitoraggio, backup, sicurezza |

@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.1.1 — 2026-10-31
+
+Nessuna modifica alla logica delle strategie (restano 1.0.0, tutte respinte e in portafoglio ombra).
+
+### Aggiunto
+- `python -m atlas doctor`: diagnosi completa (paper, ordini bloccati, Kraken, token Telegram senza
+  mostrarlo, strategie, portafogli ombra, permessi `.env`, istanze attive).
+- `python -m atlas export` / `restore`: trasferimento dei portafogli tra Codespace e server, senza segreti;
+  il ripristino rifiuta se ATLAS è attivo e conserva i dati precedenti.
+- `/diagnosi`: motivi di rifiuto più frequenti per ogni portafoglio; incluso nel report settimanale.
+- Avviso (max 1/ora) se Telegram segnala due istanze con lo stesso token (errore 409).
+- `history --end`, `validate --timeframe/--higher-timeframe/--warmup-bars`, più CSV per coppia e file `.csv.gz`.
+- Dati di ricerca nel repository: un anno di candele 1h reali BTC/ETH/SOL (`research/data/`).
+- `docs/MIGRAZIONE.md` (aggiornamento Codespace e passaggio al server) e `docs/RESEARCH_PLAN.md`.
+
+### Modificato
+- La validazione vale solo per il timeframe su cui è stata ottenuta.
+- Una strategia con solo il backtest superato resta "in osservazione": per entrare nel portafoglio
+  principale serve anche evidenza di paper trading nel suo portafoglio ombra.
+- Cache delle candele: riscaricate solo alla chiusura di una nuova candela (traffico per ciclo da ~405 KB a ~1 KB).
+- `healthcheck` segnala "DEGRADATO" dopo circa un'ora di cicli falliti consecutivi.
+
 ## 1.1.0 — 2026-10-31
 
 ### Aggiunto

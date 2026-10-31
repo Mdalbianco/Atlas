@@ -23,8 +23,14 @@ from atlas.domain import MarketRules
 
 def load_csv(path: str | Path) -> pd.DataFrame:
     path = Path(path)
-    with path.open("r", encoding="utf-8") as fh:
-        first = fh.readline()
+    if path.suffix == ".gz":
+        import gzip
+
+        with gzip.open(path, "rt", encoding="utf-8") as fh:
+            first = fh.readline()
+    else:
+        with path.open("r", encoding="utf-8") as fh:
+            first = fh.readline()
     has_header = any(c.isalpha() for c in first)
     if has_header:
         df = pd.read_csv(path)

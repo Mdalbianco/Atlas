@@ -144,3 +144,22 @@ def test_strategies_and_comparison_texts(router):
     for name in ("trend_pullback", "breakout"):
         assert name in out
     assert "PRINCIPALE" in router.atlas.text_comparison()
+
+
+def test_conflict_monitor_rate_limited(router):
+    from atlas.telegram.bot import ConflictMonitor
+
+    t = {"now": 1000.0}
+    mon = ConflictMonitor(router.atlas, every_seconds=3600, clock=lambda: t["now"])
+    sent_before = len(router.atlas.notifier.sent)
+    assert mon.report() is True
+    assert mon.report() is False            # stessa ora: nessun nuovo messaggio
+    t["now"] += 3601
+    assert mon.report() is True
+    assert len(router.atlas.notifier.sent) - sent_before == 2
+    assert any(e["type"] == "telegram_conflict" for e in router.atlas.db.query("SELECT type FROM events"))
+
+
+def test_diagnostics_command(router):
+    out = router.handle("/diagnosi", [], USER)
+    assert "Diagnosi delle strategie" in out

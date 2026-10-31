@@ -152,3 +152,63 @@ def compare_books(main_db: Database, shadow_dbs: dict[str, Database]) -> list[di
         rows.append({"book": name, "trades": m.get("trades", 0), "expectancy_r": m.get("expectancy_r"), "win_rate": m.get("win_rate"),
                      "return_pct": (equity / initial - 1) * 100, "open": len(db.open_positions())})
     return rows
+
+
+# Categorie leggibili per i motivi di rifiuto registrati nelle decisioni
+_REASON_CATEGORIES = [
+    ("regime", "regime di mercato non compatibile"),
+    ("timeframe superiore", "timeframe superiore contrario"),
+    ("trend", "trend non adatto"),
+    ("adx", "forza del trend insufficiente"),
+    ("volume", "volume insufficiente"),
+    ("rsi", "RSI fuori intervallo"),
+    ("momentum", "momentum non confermato"),
+    ("punteggio", "score sotto la soglia"),
+    ("rendimento/rischio", "rapporto rendimento/rischio netto insufficiente"),
+    ("costi", "costi troppo alti rispetto al rischio"),
+    ("minimi", "ordine sotto i minimi"),
+    ("breakout", "nessun breakout"),
+    ("ritracciamento", "nessun ritracciamento"),
+    ("compressione", "nessuna compressione di volatilità"),
+    ("banda", "prezzo non oltre le bande"),
+    ("incrocio", "nessun incrocio delle medie"),
+    ("anomal", "condizioni anomale"),
+    ("blocco", "blocco di rischio del portafoglio"),
+]
+
+
+def _categorize(reason: str) -> str:
+    low = reason.lower()
+    for key, label in _REASON_CATEGORIES:
+        if key in low:
+            return label
+    return "altro"
+
+
+def rejection_stats(db: Database, since_iso: str | None = None) -> dict:
+    """Perché una strategia non ha operato: conteggio delle cause di rifiuto per decisione.
+
+    Ogni decisione registra tutti i motivi; qui si conta, per ogni categoria, in quante
+    candele valutate è stata presente. Dati verificabili dalla tabella ``decisions``.
+    """
+    sql = "SELECT action, details FROM decisions"
+    params: tuple = ()
+    if since_iso:
+        sql += " WHERE ts >= ?"
+        params = (since_iso,)
+    rows = db.query(sql, params)
+    total = len(rows)
+    entries = sum(1 for r in rows if r["action"] == "ENTER")
+    counts: dict[str, int] = {}
+    for r in rows:
+        if r["action"] == "ENTER" or not r["details"]:
+            continue
+        reasons = json.loads(r["details"]).get("reasons") or []
+        seen = set()
+        for reason in reasons:
+            for part in str(reason).split("; "):
+                seen.add(_categorize(part))
+        for cat in seen:
+            counts[cat] = counts.get(cat, 0) + 1
+    ranked = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
+    return {"evaluations": total, "entries": entries, "reasons": ranked}

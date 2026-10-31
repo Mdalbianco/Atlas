@@ -30,25 +30,31 @@ from atlas.strategy.registry import STRATEGIES
 from atlas.strategy.validation import CRITERIA, STATUS_FILE, evaluate_criteria
 
 
-def _grid(name: str, base_scores=(60.0, 65.0, 70.0)) -> list[tuple[float, dict]]:
+def _grid(name: str, base_scores=(60.0, 65.0, 70.0), override: dict | None = None) -> list[tuple[float, dict]]:
     cls = STRATEGIES[name]
-    grid = cls.param_grid()
+    grid = dict(cls.param_grid())
+    if override:
+        unknown = set(override) - set(cls.default_params())
+        if unknown:
+            raise ValueError(f"Parametri sconosciuti per {name}: {', '.join(sorted(unknown))}")
+        grid.update(override)
     combos: list[dict] = [{}]
     for key, values in grid.items():
         combos = [{**c, key: v} for c in combos for v in values]
     return [(ms, c) for ms in base_scores for c in combos]
 
 
-def walk_forward_strategy(data, base: BacktestConfig, name: str, train_bars: int, test_bars: int, warmup_bars: int, min_trades: int, cache: dict) -> dict:
+def walk_forward_strategy(data, base: BacktestConfig, name: str, train_bars: int, test_bars: int, warmup_bars: int, min_trades: int, cache: dict, grid_override: dict | None = None) -> dict:
     tl = _timeline(data)
     folds, oos = [], []
     start = warmup_bars
-    while start + train_bars + test_bars <= len(tl):
+    # l'ultimo periodo di test può essere più corto, purché lungo almeno metà del normale
+    while start + train_bars + test_bars // 2 <= len(tl):
         tr = (tl[start], tl[start + train_bars])
-        end = start + train_bars + test_bars
+        end = min(start + train_bars + test_bars, len(tl))
         te = (tl[start + train_bars], tl[end] if end < len(tl) else tl[-1] + 1)
         ranked = []
-        for ms, params in _grid(name):
+        for ms, params in _grid(name, override=grid_override):
             cfg = replace(base, min_score=ms)
             strat = STRATEGIES[name](costs=cfg.costs, **params)
             res = Backtester([strat], cfg).run(data, *tr, cache=cache)
@@ -92,6 +98,8 @@ def walk_forward_strategy(data, base: BacktestConfig, name: str, train_bars: int
     return {
         "strategy": f"{name}@{STRATEGIES[name].version}",
         "status": "validata" if passed else "respinta",
+        "configurations_tested": len(_grid(name, override=grid_override)),
+        "grid": {"min_score": [60.0, 65.0, 70.0], **STRATEGIES[name].param_grid(), **(grid_override or {})},
         "reason": "tutti i criteri soddisfatti" if passed else "; ".join(fails),
         "folds": folds,
         "oos": m,
@@ -110,10 +118,11 @@ def _iso(ms: int) -> str:
     return pd.to_datetime(ms, unit="ms", utc=True).isoformat()
 
 
-def validate_all(data, base: BacktestConfig, names: list[str], train_bars=2000, test_bars=1000, warmup_bars=900, min_trades=10, source: str = "non specificata") -> dict:
+def validate_all(data, base: BacktestConfig, names: list[str], train_bars=2000, test_bars=1000, warmup_bars=900, min_trades=10, source: str = "non specificata", grids: dict | None = None) -> dict:
     cache: dict = {}
     tl = _timeline(data)
-    results = [walk_forward_strategy(data, base, n, train_bars, test_bars, warmup_bars, min_trades, cache) for n in names]
+    grids = grids or {}
+    results = [walk_forward_strategy(data, base, n, train_bars, test_bars, warmup_bars, min_trades, cache, grids.get(n)) for n in names]
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "data": {
@@ -133,6 +142,7 @@ def validate_all(data, base: BacktestConfig, names: list[str], train_bars=2000, 
             "walk_forward": {"train_bars": train_bars, "test_bars": test_bars, "warmup_bars": warmup_bars},
         },
         "criteria": CRITERIA,
+        "experiment": bool(grids),
         "results": results,
     }
 
@@ -160,7 +170,7 @@ def markdown(report: dict) -> str:
 
     d = report["data"]
     lines = [
-        "# Report di validazione delle strategie",
+        "# Report di validazione delle strategie" + (" — ESPERIMENTO (griglie modificate)" if report.get("experiment") else ""),
         "",
         f"Generato: {report['generated_at'][:19]} UTC  ",
         f"Dati: {', '.join(d['symbols'])} — {d['start'][:10]} → {d['end'][:10]} ({d['bars']} candele 1h)  ",
@@ -182,7 +192,7 @@ def markdown(report: dict) -> str:
         )
     lines += ["", "## Dettaglio", ""]
     for r in report["results"]:
-        lines += [f"### {r['strategy']} — {r['status']}", "", f"Motivo: {r['reason']}", f"Stabilità dei parametri tra i fold: {f(r['param_stability'])}", ""]
+        lines += [f"### {r['strategy']} — {r['status']}", "", f"Motivo: {r['reason']}", f"Configurazioni provate in ogni training: {r['configurations_tested']} (griglia {r['grid']})", f"Stabilità dei parametri tra i fold: {f(r['param_stability'])}", ""]
         lines += ["| Test | Parametri | Operazioni | Expectancy | Rendimento | Buy & hold |", "|---|---|---|---|---|---|"]
         for fo in r["folds"]:
             lines.append(f"| {fo['test'][0][:10]} → {fo['test'][1][:10]} | {fo['params']} | {fo['test_trades']} | {f(fo['test_expectancy_r'], 3)} R | {f(fo['test_return_pct'])}% | {f(fo['buy_hold_return_pct'])}% |")

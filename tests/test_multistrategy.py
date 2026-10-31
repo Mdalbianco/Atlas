@@ -156,3 +156,24 @@ def test_ambiguous_telegram_or_kraken_config_rejected():
         Settings(kraken_api_key="k").validate()
     with pytest.raises(ConfigError, match="sconosciuta"):
         Settings(strategies=("magia",)).validate()
+
+
+def test_validation_runner_end_to_end_on_synthetic(tmp_path):
+    from atlas.backtest.engine import BacktestConfig
+    from atlas.backtest.validation_runner import markdown, validate_all, write_status
+    from atlas.data.sources import SyntheticMarket
+    from atlas.strategy.validation import load_status
+
+    data = SyntheticMarket(bars=2400, seed=11).data
+    rep = validate_all(data, BacktestConfig(), ["trend_pullback"], train_bars=800, test_bars=400, warmup_bars=900, source="sintetici di test")
+    r = rep["results"][0]
+    assert r["folds"] and all(f["train"][1] <= f["test"][0] for f in r["folds"])
+    assert r["configurations_tested"] == 3 * 2
+    assert r["status"] in ("validata", "respinta")
+    assert "sintetici di test" in markdown(rep)
+    path = tmp_path / "status.json"
+    write_status(rep, path)
+    entry = load_status(path)["trend_pullback@1.0.0"]
+    assert entry["status"] == r["status"] and "oos" in entry
+    with pytest.raises(ValueError):
+        validate_all(data, BacktestConfig(), ["trend_pullback"], grids={"trend_pullback": {"inesistente": [1.0]}})

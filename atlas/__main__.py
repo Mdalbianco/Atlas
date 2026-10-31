@@ -141,7 +141,15 @@ def cmd_validate(args) -> int:
         sym, path = item.split("=", 1) if "=" in item else (symbol_from_filename(item), item)
         data[normalize_symbol(sym, s.quote_currency)] = load_csv(path)
     names = args.strategies.split(",") if args.strategies else list(s.strategies)
-    report = validate_all(data, _backtest_config(s, data), names, args.train_bars, args.test_bars, source=args.source)
+    grids: dict = {}
+    for spec in args.grid or []:          # es. trend_pullback.rsi_max=60,65
+        key, values = spec.split("=", 1)
+        strat, param = key.split(".", 1)
+        grids.setdefault(strat, {})[param] = [float(v) for v in values.split(",")]
+    if grids and args.write_status:
+        print("Le griglie sperimentali non possono aggiornare il file di stato: prima si crea una nuova versione della strategia.")
+        return 2
+    report = validate_all(data, _backtest_config(s, data), names, args.train_bars, args.test_bars, source=args.source, grids=grids)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.with_suffix(".json").write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
@@ -282,6 +290,7 @@ def _main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", default="reports/validazione")
     p.add_argument("--write-status", action="store_true", help="aggiorna atlas/strategy/validation_status.json")
     p.add_argument("--source", default="file CSV forniti dall'utente", help="descrizione della provenienza dei dati")
+    p.add_argument("--grid", nargs="*", help="esperimento: griglia alternativa, es. trend_pullback.rsi_max=60,65")
     p.set_defaults(func=cmd_validate)
     p = sub.add_parser("backtest", help="backtest / validazione")
     p.add_argument("--csv", nargs="*", help="file CSV (nome tipo BTC_EUR_1h.csv) oppure SIMBOLO=percorso")

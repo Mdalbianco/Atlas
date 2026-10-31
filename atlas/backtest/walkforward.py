@@ -122,9 +122,10 @@ def walk_forward(data, base: BacktestConfig, strategy_names, train_bars: int = 2
     oos_trades = []
     cache: dict = {}
     start = warmup_bars
-    while start + train_bars + test_bars <= len(tl):
+    # l'ultimo periodo di test può essere più corto, purché lungo almeno metà del normale
+    while start + train_bars + test_bars // 2 <= len(tl):
         tr = (tl[start], tl[start + train_bars])
-        te_end = start + train_bars + test_bars
+        te_end = min(start + train_bars + test_bars, len(tl))
         te = (tl[start + train_bars], tl[te_end] if te_end < len(tl) else tl[-1] + 1)
         ranked = grid_search(data, base, strategy_names, tr, grid, min_trades, cache)
         best = ranked[0]

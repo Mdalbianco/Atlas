@@ -1,0 +1,24 @@
+# Servizio systemd per un VPS Linux. Installazione: vedi docs/OPERATIONS.md
+[Unit]
+Description=ATLAS paper trading bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=atlas
+WorkingDirectory=/opt/atlas
+EnvironmentFile=/opt/atlas/.env
+ExecStart=/opt/atlas/.venv/bin/python -m atlas run
+Restart=always
+RestartSec=30
+# Arresto ordinato: SIGTERM, poi attesa della fine del ciclo
+KillSignal=SIGTERM
+TimeoutStopSec=90
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/atlas/data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

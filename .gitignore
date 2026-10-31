@@ -2,12 +2,26 @@
 __pycache__/
 *.py[cod]
 *.pyo
+.pytest_cache/
+.venv/
+venv/
 
-# Ambiente
+# Segreti — MAI su Git
 .env
+.env.*
+!.env.example
+*.key
+*.pem
 
-# VS Code
+# Dati di runtime (database, log, storici scaricati, report)
+data/
+logs/
+reports/
+*.db
+*.db-wal
+*.db-shm
+
+# Editor / OS
 .vscode/
-
-# macOS
+.idea/
 .DS_Store

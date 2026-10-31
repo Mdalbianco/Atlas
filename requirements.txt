@@ -1,7 +1,7 @@
-python-dotenv
-
-python-telegram-bot
-
-ccxt
-
-pandas
+# Dipendenze di esecuzione (Python >= 3.11)
+ccxt>=4.3,<5
+pandas>=2.1,<4
+numpy>=1.26,<3
+python-telegram-bot>=21,<23
+python-dotenv>=1.0,<2
+requests>=2.31,<3

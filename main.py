@@ -1,30 +1,8 @@
-from app.services.startup import startup
-from config.settings import (
-    APP_NAME,
-    INITIAL_CAPITAL,
-    PAPER_TRADING,
-    VERSION,
-)
+"""Compatibilità con il prototipo: `python main.py` equivale a `python -m atlas run`."""
 
+import sys
 
-def banner() -> None:
-    """Mostra le informazioni principali di Atlas."""
-
-    print("=" * 45)
-    print(f"🚀 {APP_NAME}")
-    print(f"Versione {VERSION}")
-    print("=" * 45)
-    print(f"Paper Trading : {PAPER_TRADING}")
-    print(f"Capitale      : {INITIAL_CAPITAL} €")
-    print("=" * 45)
-
-
-def main() -> None:
-    """Punto di ingresso principale di Atlas."""
-
-    banner()
-    startup()
-
+from atlas.__main__ import main
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main(sys.argv[1:] or ["run"]))

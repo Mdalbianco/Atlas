@@ -6,16 +6,16 @@
 | B — Architettura | ✅ completata | `docs/ARCHITECTURE.md` |
 | C — Nucleo analitico | ✅ completata | indicatori causali, struttura, multi-timeframe, 2 strategie, scoring |
 | D — Trading simulato | ✅ completata | risk manager, costi realistici, conto persistente, gestione posizione |
-| E — Validazione | 🟡 meccanica completa, **validazione su dati reali da fare** | backtest, split cronologico, walk-forward, metriche, test |
-| F — Telegram e automazione | ✅ implementata, 🟡 da verificare dal vivo | comandi, notifiche, scheduler, ripresa dopo riavvio |
-| G — Deployment | ✅ file pronti, 🟡 da provare su server | Docker, docker-compose, systemd, health check, CI GitHub Actions |
-| H — Ottimizzazione | 🟡 strumenti pronti | analisi performance e proposte; serve storico reale |
+| E — Validazione | ✅ eseguita su 1 anno di dati reali Kraken | **nessuna strategia validata** (vedi VALIDATION_REPORT.md) |
+| F — Telegram e automazione | ✅ | comandi verificati su dati reali; /start e /status verificati dall'utente con il bot reale |
+| G — Deployment | ✅ immagine Docker verificata (crash/riavvio/persistenza), 🟡 server reale da creare | install/update/backup script, guida iPad |
+| H — Ottimizzazione | 🟡 diagnosi fatta, proposte registrate | timeframe 4h e revisione scoring da sviluppare come nuove versioni |
 
 ## Criteri di completamento v1 (sezione 17 delle specifiche)
 
 | Criterio | Stato | Verifica |
 |---|---|---|
-| Bot Telegram funzionante | 🟡 | API Telegram raggiungibile; logica testata offline; manca la prova con un token reale |
+| Bot Telegram funzionante | ✅ | verificato dall'utente in Codespaces (/start, /status); tutti i comandi verificati su dati reali via router |
 | Connessione Kraken in sola lettura | ✅ | verificata dal vivo (31/10/2026): 720 candele 1h/4h per BTC/ETH/SOL, ticker, regole di mercato, ciclo paper completo |
 | Dati raccolti e validati | ✅ | test su candela in formazione, dati incoerenti, buchi, dati vecchi |
 | Analisi tecnica verificabile | ✅ | test numerici (RSI di Wilder, ATR, ADX…) e test anti look-ahead |
@@ -32,15 +32,11 @@
 
 ## Prossimi passi (in ordine di priorità)
 
-1. **Primo avvio reale** in Codespaces: `.env` con token Telegram e ID, `python -m atlas cycle`, poi `run`.
-   Verificare `/status`, `/analisi BTC`, `/mercato`.
-2. **Dati storici reali**: scaricare i file OHLCVT Kraken di BTC/EUR, ETH/EUR, SOL/EUR (1h, ≥ 2 anni)
-   ed eseguire `--validate` e `--walk-forward`. Decidere, sulla base dei risultati, se tenere `breakout`
-   (negativo anche sui dati sintetici) e se alzare la soglia a 75 (sui dati sintetici la fascia 65–74 è in pareggio).
-3. **Deployment continuo** su VPS con Docker; lasciare girare il paper trading per almeno 3 mesi.
-4. Rivedere ogni mese `/report` e le proposte; ogni modifica → nuova versione di strategia → walk-forward.
-5. Valutare timeframe più lunghi (4h/1d) come operativi: con 100 € e commissioni 0,40% i movimenti più
-   ampi riducono il peso relativo dei costi.
+1. **Attivare il 24/7** sul server (docs/GUIDA_IPAD.md, sezione B): il paper trading dei portafogli ombra
+   produce evidenza reale e indipendente dal backtest.
+2. **Storico di 2–3 anni** e nuove versioni delle strategie su timeframe 4h (proposta 1 del report di validazione).
+3. Revisione dei pesi dello scoring come `scoring v2`, validata con walk-forward.
+4. Rivedere mensilmente `/report`: promuovere solo con una nuova validazione superata.
 
 ## Estensioni future (non implementate)
 

@@ -99,6 +99,10 @@ predefinita: **65** (`ATLAS_MIN_SCORE`).
 
 ## Validazione dello score e delle soglie
 
+> **Aggiornamento 31/10/2026 — dati reali:** su un anno di dati Kraken la fascia di score ≥ 75 non ha reso meglio
+> della fascia 65–74 e nessuna strategia ha superato la validazione. Vedi [VALIDATION_REPORT.md](VALIDATION_REPORT.md).
+> I numeri sintetici qui sotto restano solo come verifica della meccanica.
+
 Il backtest riporta i risultati per fascia di score (`by_score`). Uno score utile deve
 mostrare expectancy crescente con il punteggio. Risultato sui **dati sintetici**
 (4 seed × 5.000 candele × 3 asset, soglia 0 per osservare tutte le fasce):

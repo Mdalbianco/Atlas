@@ -21,7 +21,7 @@ def max_drawdown(equity: pd.Series) -> tuple[float, int]:
     for u in underwater:
         cur = cur + 1 if u else 0
         longest = max(longest, cur)
-    return float(-dd.min()), longest
+    return max(0.0, float(-dd.min())), longest
 
 
 def trade_metrics(trades: pd.DataFrame) -> dict:

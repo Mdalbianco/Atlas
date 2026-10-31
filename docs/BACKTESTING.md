@@ -54,14 +54,15 @@ python -m atlas backtest --csv ... --walk-forward --train-bars 2000 --test-bars 
 - Il walk-forward riporta la **stabilità dei parametri** (quota di fold che sceglie gli stessi):
   parametri instabili indicano che l'ottimizzazione insegue il rumore.
 
-## Risultati attuali (onestà sullo stato)
+## Risultati attuali
 
-In questo ambiente di sviluppo l'accesso di rete a Kraken era bloccato: **nessuna strategia è
-stata ancora valutata su dati reali**. Le esecuzioni su dati sintetici (vedi
-`docs/STRATEGIES_AND_SCORING.md`) dimostrano soltanto che la meccanica funziona. Esempio
-(`--synthetic --bars 5000`, seed 7/21/99): rendimento tra +8% e +22% con drawdown 8–14% e
-99–185 operazioni, a fronte di un buy & hold tra +44% e +810% sugli stessi dati. Quindi anche sul
-mercato artificiale la strategia **rende meno del semplice mantenimento**, pur con drawdown molto inferiori.
+**Validazione su dati reali eseguita il 31/10/2026** (un anno di candele 1h BTC/ETH/SOL ricostruite dai
+trade pubblici Kraken): **nessuna strategia supera i criteri**. Dettagli, diagnosi sui costi e proposte in
+[VALIDATION_REPORT.md](VALIDATION_REPORT.md).
+
+Le esecuzioni su dati sintetici (`--synthetic`) servono solo a verificare la meccanica: sui dati sintetici
+le strategie trend following risultavano positive perché il generatore crea trend artificiali, risultato
+che i dati reali **non** hanno confermato.
 
 ## Parità tra paper trading e backtest
 
@@ -72,7 +73,8 @@ backtest. Questo test ha fatto emergere (e correggere) due discrepanze reali:
    backtest → ora il live scarica 720 candele (massimo Kraken) e la configurazione rifiuta valori < 600;
 2. il backtest non liberava subito lo spazio di una posizione con uscita già decisa → allineato al live.
 
-## Prossimo passo obbligatorio
+## Storici lunghi
 
-Scaricare gli storici OHLCVT reali di BTC/EUR, ETH/EUR, SOL/EUR
-(almeno 2–3 anni) ed eseguire `--validate` e `--walk-forward`.
+`python -m atlas history SIMBOLO --days N --out FILE` ricostruisce le candele dai trade pubblici
+(riprendibile: se si interrompe basta rilanciare lo stesso comando). Tempi osservati per 365 giorni:
+BTC/EUR ~3,5 h (11.942 richieste), ETH/EUR e SOL/EUR ~2,5 h ciascuno (~5.300 richieste).

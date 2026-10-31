@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.1.0 — 2026-10-31
+
+### Aggiunto
+- Tre nuove strategie versionate: `trend_following`, `mean_reversion` (solo mercato laterale),
+  `volatility_squeeze`; indicatori Bollinger (larghezza e percentile), Donchian, pendenza ADX.
+- Compatibilità di regime: nessuna strategia opera in trend ribassista o volatilità estrema.
+- Cancello di validazione (`atlas/strategy/validation_status.json`, versionato) e portafogli ombra
+  isolati per le strategie non validate.
+- `python -m atlas validate`: walk-forward per strategia su dati reali, criteri di promozione,
+  confronto con buy & hold, report JSON/Markdown.
+- `python -m atlas history`: storici lunghi dai trade pubblici Kraken (riprendibile, verificato
+  contro le candele OHLC ufficiali).
+- Istanza unica (lock), backup giornalieri verificati con rotazione, `python -m atlas backup`.
+- Report settimanale con confronto tra portafogli; proposte notificate una sola volta; rilevamento
+  del degrado delle strategie; notifica di ripristino dopo una serie di errori.
+- Configurazione fail-safe: variabili `ATLAS_*` sconosciute o impostazioni Telegram/Kraken ambigue
+  bloccano l'avvio con un messaggio chiaro.
+- Deployment: `deploy/install.sh`, `deploy/update.sh` (backup + rollback automatico),
+  `deploy/backup-offsite.sh`, immagine base Docker configurabile; `docs/HOSTING.md`, `docs/GUIDA_IPAD.md`.
+
+### Modificato
+- Il client Kraken rispetta `HTTPS_PROXY` e il CA bundle di sistema.
+- `/analisi` valuta tutte le strategie candidate e indica quali sono attive; `/strategie` mostra lo
+  stato di validazione; `/report` include il confronto tra portafogli.
+
 ## 1.0.0 — 2026-10-31
 
 Ricostruzione completa del prototipo in un package modulare `atlas/` (dettagli in `docs/AUDIT.md`).

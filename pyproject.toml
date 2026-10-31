@@ -1,6 +1,6 @@
 [project]
 name = "atlas-trading"
-version = "1.0.0"
+version = "1.1.0"
 description = "ATLAS — analisi e paper trading algoritmico di criptovalute (Kraken, Telegram)"
 requires-python = ">=3.11"
 readme = "README.md"

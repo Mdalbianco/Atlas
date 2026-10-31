@@ -271,17 +271,18 @@ class Atlas:
         L = self.cycle.limits
         st = self._state()
         blocks = self.cycle.risk.portfolio_blocks(st, self.cycle.clock())
+        n = fmt.num
         lines = [
             "🛡 Gestione del rischio",
             "",
-            f"Rischio per operazione: {L.risk_per_trade_pct}% del capitale",
-            f"Rapporto rendimento/rischio minimo (netto costi): {L.min_reward_risk}",
+            f"Rischio per operazione: {n(L.risk_per_trade_pct, 1)}% del capitale",
+            f"Rapporto rendimento/rischio minimo (netto costi): {n(L.min_reward_risk, 1)}",
             f"Posizioni contemporanee max: {L.max_open_positions}",
-            f"Dimensione max per posizione: {L.max_position_pct}%   Esposizione max: {L.max_exposure_pct}%",
-            f"Perdita giornaliera max: {L.max_daily_loss_pct}%   Drawdown max: {L.max_drawdown_pct}% (arresto)",
+            f"Dimensione max per posizione: {n(L.max_position_pct, 0)}%   Esposizione max: {n(L.max_exposure_pct, 0)}%",
+            f"Perdita giornaliera max: {n(L.max_daily_loss_pct, 1)}%   Drawdown max: {n(L.max_drawdown_pct, 1)}% (arresto)",
             f"Pausa dopo {L.max_consecutive_losses} perdite consecutive: {L.cooldown_hours_after_losses}h",
-            f"Rischio max su asset correlati: {L.max_correlated_risk_pct}% (correlazione ≥ {L.correlation_threshold})",
-            f"Costi simulati: commissione {self.settings.taker_fee_pct}% + slippage {self.settings.slippage_pct}% per lato, più spread",
+            f"Rischio max su asset correlati: {n(L.max_correlated_risk_pct, 1)}% (correlazione ≥ {n(L.correlation_threshold, 2)})",
+            f"Costi simulati: commissione {n(self.settings.taker_fee_pct)}% + slippage {n(self.settings.slippage_pct)}% per lato, più spread",
             "",
             f"Oggi: {fmt.signed_pct(st.daily_pnl_pct)}   Drawdown: {fmt.num(st.drawdown_pct)}%   Perdite consecutive: {st.consecutive_losses}",
             "",

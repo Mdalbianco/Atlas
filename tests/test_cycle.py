@@ -113,3 +113,17 @@ def test_pause_blocks_new_entries(env):
     rep = a.cycle.run_once()
     assert rep.ok and not rep.opened
     assert any("pausa" in b for b in rep.blocks)
+
+
+def test_error_streak_notified_once_and_recovery_announced(env):
+    a = env["make"]()
+    env["at"](1000)
+    original = env["m"].ping
+    env["m"].ping = lambda: False
+    for _ in range(7):
+        a.cycle.run_once()
+    errors = [t for t in env["notifier"].sent if "cicli consecutivi falliti" in t]
+    assert len(errors) == 1                     # una sola notifica, non una per ciclo
+    env["m"].ping = original
+    assert a.cycle.run_once().ok
+    assert any("ripristinata" in t for t in env["notifier"].sent)

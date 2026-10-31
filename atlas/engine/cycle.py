@@ -139,6 +139,9 @@ class TradingCycle:
         rep = CycleReport(started_at=now)
         try:
             self._run(rep, now)
+            previous_errors = int(self.db.get_state("consecutive_errors", 0))
+            if previous_errors >= self.s.max_consecutive_errors:
+                self._notify(f"✅ ATLAS — Operatività ripristinata dopo {previous_errors} cicli falliti.")
             self.db.set_state("consecutive_errors", 0)
         except Exception as exc:  # errore imprevisto: possibile problema critico
             rep.ok = False

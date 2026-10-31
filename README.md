@@ -1,7 +1,7 @@
 # ATLAS
 
 Sistema algoritmico di **analisi e paper trading** di criptovalute sul mercato spot di **Kraken**,
-controllabile da **Telegram**. Versione 1.0.0.
+controllabile da **Telegram**. Versione 1.1.0.
 
 > ⚠️ ATLAS opera **solo in simulazione** (paper trading). Il trading reale non è implementato e non è
 > attivabile (vedi [docs/LIVE_TRADING_POLICY.md](docs/LIVE_TRADING_POLICY.md)). Nessun rendimento è garantito.
@@ -12,7 +12,10 @@ controllabile da **Telegram**. Versione 1.0.0.
 1. Monitora una watchlist di coppie Kraken (default BTC/EUR, ETH/EUR, SOL/EUR) ogni 5 minuti.
 2. Analizza trend (EMA20/50/200, ADX), momentum (RSI, MACD), volatilità (ATR), volumi, struttura di
    prezzo, supporti e resistenze, su 1h con conferma 4h e riferimento generale BTC.
-3. Valuta due strategie versionate (`trend_pullback`, `breakout`) solo alla chiusura di una nuova candela.
+3. Valuta cinque strategie versionate (trend following, pullback, breakout, mean reversion, volatility squeeze),
+   ciascuna solo nei regimi di mercato compatibili e solo alla chiusura di una nuova candela. Nel portafoglio
+   principale entrano **solo le strategie che superano la validazione walk-forward su dati reali**; le altre
+   girano in portafogli ombra isolati per raccogliere evidenza.
 4. Assegna a ogni setup un punteggio 0–100 interpretabile, con il dettaglio delle 9 componenti.
 5. Passa ogni segnale al risk manager: rischio 1% per operazione, R/R minimo **al netto dei costi**,
    limiti di esposizione, perdita giornaliera, drawdown, correlazione, minimi d'ordine.
@@ -48,6 +51,9 @@ Per l'esecuzione continua (server, Docker, systemd) vedi [docs/OPERATIONS.md](do
 | `python -m atlas download BTC/EUR --days 30 --out FILE` | storico recente da Kraken |
 | `python -m atlas backtest --csv FILE... [--validate \| --walk-forward]` | backtest su dati reali |
 | `python -m atlas backtest --synthetic` | backtest su dati sintetici (solo verifica meccanica) |
+| `python -m atlas history BTC/EUR --days 365 --out FILE` | storico lungo dai trade pubblici Kraken |
+| `python -m atlas validate --csv FILE...` | validazione walk-forward per strategia e report |
+| `python -m atlas backup` | backup verificato dei database |
 
 **Telegram**: `/start` `/help` `/status` `/saldo` `/prezzo` `/watchlist` · `/analisi` `/segnali`
 `/mercato` `/strategie` · `/posizioni` `/operazioni` `/performance` `/report` `/rischio` ·
@@ -76,6 +82,9 @@ Operazione SIMULATA (paper trading): nessun denaro reale è stato usato.
 | [docs/STRATEGIES_AND_SCORING.md](docs/STRATEGIES_AND_SCORING.md) | regole delle strategie, pesi dello score, promozione delle strategie |
 | [docs/RISK.md](docs/RISK.md) | limiti di rischio e analisi dei costi con 100 € |
 | [docs/BACKTESTING.md](docs/BACKTESTING.md) | backtest, walk-forward, dati reali, stato della validazione |
+| [docs/GUIDA_IPAD.md](docs/GUIDA_IPAD.md) | **guida passo-passo da iPad**: Codespaces, server 24/7, Telegram |
+| [docs/HOSTING.md](docs/HOSTING.md) | confronto hosting con costi e limiti verificati |
+| [docs/VALIDATION_REPORT.md](docs/VALIDATION_REPORT.md) | risultati della validazione su dati reali Kraken |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | installazione, deployment, monitoraggio, backup, sicurezza |
 | [docs/LIVE_TRADING_POLICY.md](docs/LIVE_TRADING_POLICY.md) | perché e come il trading reale è bloccato |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | stato delle fasi, criteri di completamento, prossimi passi |

@@ -12,10 +12,35 @@ Conseguenza pratica: con uno stop stretto i costi pesano di più, quindi il targ
 allontana. Lo stesso setup con stop all'1% richiede un movimento lordo molto maggiore
 (in R) rispetto a uno stop al 3%.
 
-## Strategie (v1)
+## Strategie
 
-Tutte **long-only, spot, timeframe 1h con conferma 4h**. Stato: `in_validazione`
-(nessuna è stata validata su dati reali; vedi sotto).
+Tutte **long-only, spot, timeframe 1h con conferma 4h**. Ogni strategia dichiara i **regimi** in cui
+ha senso: il motore decisionale non la valuta nemmeno negli altri. Nessuna strategia opera in
+`trend_ribassista` o `alta_volatilita`: sono condizioni esplicite di non-operatività.
+
+| Strategia | Versione | Regimi | Idea | Uscita tipica |
+|---|---|---|---|---|
+| `trend_following` | 1.0.0 | trend rialzista | incrocio EMA20/EMA50 sopra EMA200, ADX in crescita, 4h rialzista | trailing stop o incrocio opposto; target 4R netti |
+| `trend_pullback` | 1.0.0 | trend rialzista, laterale | ritracciamento sull'EMA20 in trend con ripresa del momentum | target 2,5R netti o resistenza |
+| `breakout` | 1.0.0 | trend rialzista, laterale | rottura del massimo a 20 candele dopo consolidamento, volume ≥ 1,5× | target 2R netti; falso breakout |
+| `mean_reversion` | 1.0.0 | **solo laterale** (ADX < 20) | eccesso sotto la banda di Bollinger inferiore, RSI ≤ 35, candela di inversione | media centrale delle bande |
+| `volatility_squeeze` | 1.0.0 | laterale, trend rialzista | compressione delle bande (larghezza nel 20% più basso di 120 candele) poi chiusura sopra la banda superiore con volume | target 2R netti; ritorno sotto la media |
+
+Ogni strategia ha: regole di ingresso (`evaluate`), condizioni di invalidazione (`invalidation`),
+stop e target propri, parametri configurabili (`default_params`), una griglia piccola fissata a priori
+per la validazione (`param_grid`), test dedicati (`tests/test_strategies_scoring.py`,
+`tests/test_multistrategy.py`) e metriche per strategia nel backtest e nel paper trading.
+Il dimensionamento e i limiti di rischio sono **comuni** e applicati dal risk manager.
+
+### Portafoglio principale e portafogli ombra
+
+- **Principale**: usa solo le versioni marcate `validata` in `atlas/strategy/validation_status.json`
+  (file versionato: cambia solo con un commit). È il portafoglio delle notifiche e di `/performance`.
+- **Ombra**: ogni strategia candidata non validata ha un proprio conto virtuale da 100 € in
+  `data/shadow/<nome>.db`, con le stesse regole di rischio. Non invia notifiche di operazione e non
+  influenza il principale. Serve a raccogliere evidenza in tempo reale (`/report`, report settimanale).
+- Una strategia ombra non viene mai promossa automaticamente: serve un nuovo `python -m atlas validate`
+  su dati reali e la revisione del file di stato.
 
 ### `trend_pullback` v1.0.0 — ritracciamento in trend
 | Condizione | Valore predefinito |
@@ -98,15 +123,22 @@ following. Non sono evidenza di redditività. La stessa analisi va ripetuta su d
 
 ## Ciclo di vita e promozione delle strategie
 
-`sperimentale` → `in_validazione` → `validata` → `attiva` → `ritirata`
+`in_validazione` → (`python -m atlas validate`) → `validata` | `respinta` → (eventuale nuova versione)
 
-Per passare a `validata` servono, su dati reali e fuori campione (walk-forward):
-- almeno 100 operazioni in totale e almeno 30 nel periodo di test;
-- expectancy netta > 0 e profit factor > 1,15 nel test;
-- drawdown massimo nel test inferiore al limite configurato;
-- nessuna degradazione grave tra training e test (avvertenza assente nel report);
-- confronto con il buy & hold documentato.
+Criteri (`atlas/strategy/validation.py`, tutti obbligatori, solo periodi **fuori campione**, costi inclusi):
 
-Ogni modifica della logica o dei parametri predefiniti richiede una **nuova versione**
-(`version`), così le operazioni storiche restano attribuite alla versione che le ha generate.
-ATLAS genera proposte (`/report`), ma **non modifica mai da solo** strategie, pesi o soglie.
+| Criterio | Soglia |
+|---|---|
+| Operazioni fuori campione | ≥ 30 |
+| Expectancy netta | ≥ +0,05 R |
+| Profit factor | ≥ 1,15 |
+| Drawdown massimo | ≤ 15% |
+| Periodi di test positivi | ≥ 50% |
+
+Il report confronta sempre ogni strategia con il **buy & hold** degli stessi periodi. Un buon risultato
+storico è condizione necessaria, non sufficiente: dopo la promozione il rilevamento del degrado confronta
+le ultime 15 operazioni reali con l'expectancy attesa e segnala (senza agire da solo) i peggioramenti.
+
+Ogni modifica della logica o dei parametri predefiniti richiede una **nuova versione** (`version`):
+la nuova versione riparte da "non validata". ATLAS genera proposte (`/report`), ma **non modifica mai
+da solo** strategie, pesi, soglie o file di stato.

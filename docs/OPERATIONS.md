@@ -1,5 +1,7 @@
 # Installazione, esecuzione continua e gestione
 
+> Per la procedura passo-passo da iPad vedi [GUIDA_IPAD.md](GUIDA_IPAD.md); per la scelta dell'hosting [HOSTING.md](HOSTING.md).
+
 ## 1. Prerequisiti
 
 - Python 3.11 o superiore.
@@ -73,9 +75,14 @@ La configurazione si cambia **solo** modificando `.env` e riavviando: non è mod
 
 ## 6. Backup e ripristino
 
+ATLAS esegue ogni giorno (dopo il riepilogo serale) un backup coerente di tutti i database in
+`data/backups/`, conservando gli ultimi 14 (`ATLAS_BACKUP_KEEP`). Backup immediato con verifica di integrità:
+
 ```bash
-sqlite3 data/atlas.db ".backup data/atlas-backup-$(date +%F).db"
+python -m atlas backup
 ```
+Per copiarli fuori dal server: `bash deploy/backup-offsite.sh utente@server`.
+Ripristino: fermare ATLAS, copiare il backup scelto su `data/atlas.db`, riavviare.
 Per ripartire da zero con un nuovo capitale virtuale: fermare ATLAS e spostare/rinominare `data/atlas.db`.
 
 ## 7. Errori e ripresa
@@ -85,7 +92,8 @@ Per ripartire da zero con un nuovo capitale virtuale: fermare ATLAS e spostare/r
 | Kraken irraggiungibile, timeout, rate limit | retry con backoff (1, 2, 4, 8 s); se persiste il ciclo viene saltato; notifica dopo 5 cicli falliti consecutivi |
 | Dati incompleti, vecchi o incoerenti | la coppia viene esclusa da quel ciclo, evento registrato |
 | Errore imprevisto nel codice | **arresto di sicurezza** + notifica; posizioni aperte ancora gestite |
-| Riavvio / crash del processo | stato ripreso dal database; nessuna candela rivalutata; nessun ordine duplicato |
+| Riavvio / crash del processo | stato ripreso dal database; nessuna candela rivalutata; nessun ordine duplicato; Docker/systemd riavviano il processo |
+| Seconda istanza avviata per errore | rifiutata all'avvio (lock sul file `data/atlas.lock`) |
 | Telegram non raggiungibile | il trading simulato continua; le notifiche falliscono senza bloccare il ciclo |
 
 ## 8. Sicurezza: checklist

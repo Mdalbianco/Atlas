@@ -18,12 +18,13 @@ atlas/
 ├── data/
 │   ├── exchange.py         Kraken via CCXT in SOLA LETTURA, retry/backoff, proxy read-only
 │   ├── market_data.py      candele → DataFrame, validazione, scarto candela in formazione
-│   └── sources.py          CSV storici (anche formato Kraken OHLCVT), mercato sintetico/replay
+│   ├── sources.py          CSV storici (anche formato Kraken OHLCVT), mercato sintetico/replay
+│   └── kraken_history.py   storici lunghi dai trade pubblici Kraken (riprendibile)
 ├── analysis/
 │   ├── indicators.py       EMA, RSI/ATR/ADX (Wilder), MACD, volume relativo, OBV, volatilità
 │   ├── structure.py        pivot confermati, HH/HL, supporti/resistenze, breakout, pattern
 │   └── snapshot.py         "fotografia" interpretata + contesto multi-timeframe
-├── strategy/               strategie versionate (trend_pullback, breakout) + registro
+├── strategy/               5 strategie versionate, registro, cancello di validazione (validation.py + validation_status.json)
 ├── scoring.py              punteggio 0-100 = media pesata di 9 componenti
 ├── risk/
 │   ├── costs.py            commissioni, spread, slippage, R/R netto
@@ -38,11 +39,12 @@ atlas/
 │   ├── position_manager.py stop/target/trailing/invalidazione/stop temporale
 │   ├── account.py          conto paper persistente
 │   └── cycle.py            ciclo operativo completo
-├── backtest/               motore, metriche, split cronologico, walk-forward
+├── backtest/               motore, metriche, split cronologico, walk-forward, validatore per strategia
 ├── performance/analyzer.py statistiche dello storico + proposte (mai applicate da sole)
 ├── telegram/               notifiche, formattazione in italiano, bot con controllo accessi
 ├── app.py                  composizione + testi dei comandi
-├── runner.py               scheduler + bot + report giornaliero
+├── ops.py                  istanza unica (flock), backup verificati con rotazione
+├── runner.py               scheduler + bot + report giornaliero/settimanale + backup
 └── __main__.py             CLI
 ```
 
@@ -77,6 +79,14 @@ SQLite (decisioni, ordini, posizioni, equity, eventi, heartbeat) ─► notifich
 | `proposals` | proposte di miglioramento con evidenza | stato `proposta` finché una persona decide |
 | `state` | saldo, picco, pausa/arresto, ultima candela valutata, heartbeat | |
 | `watchlist` | coppie monitorate | |
+
+## Portafogli (book)
+
+Il ciclo scarica e analizza i dati **una sola volta**, poi li passa a ogni book:
+- `principale` (`data/atlas.db`): solo strategie validate, notifiche attive;
+- un book ombra per ogni strategia non validata (`data/shadow/<nome>.db`): stesso risk manager,
+  stessi costi, capitale separato, nessuna notifica. Un errore in un book ombra viene registrato ma
+  non interrompe mai il principale.
 
 ## Ripresa dopo riavvio
 
